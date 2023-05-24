@@ -1,0 +1,6 @@
+aiohttp==3.8.4
+fastapi==0.95.2
+openai==0.27.7
+python-dotenv==1.0.0
+qdrant-client==1.1.7
+uvicorn==0.22.0

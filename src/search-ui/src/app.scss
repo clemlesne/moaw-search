@@ -1,0 +1,13 @@
+.results {
+  max-width: 768px;
+
+  &.results--loading {
+    opacity: 0.5;
+  }
+}
+
+.footer {
+  margin: 2rem 2.5rem;
+  font-size: .8rem;
+  color: var(--color-muted);
+}

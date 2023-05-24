@@ -1,0 +1,36 @@
+.result {
+  align-items: flex-start;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  display: flex;
+  flex-direction: column;
+  margin: .5rem 1.5rem;
+  padding: 1rem;
+
+  &:hover {
+    text-decoration: none !important;
+    background-color: var(--background-active);
+    border-color: var(--border);
+  }
+
+  > *:not(:last-child) {
+    margin-bottom: .5rem;
+  }
+
+  .result__title {
+    align-self: normal;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  .result__description,
+  .result__url {
+    color: var(--color);
+  }
+
+  .result__sub {
+    color: var(--color-muted);
+  }
+}
