@@ -73,6 +73,7 @@ function App() {
       </div>
       <footer className="footer">
         <span>{import.meta.env.VITE_VERSION} ({import.meta.env.MODE})</span>
+        <a href="https://github.com/clemlesne/moaw-search-service" target="_blank" rel="noreferrer">Source code is open, let's talk about it!</a>
       </footer>
     </>
   );
