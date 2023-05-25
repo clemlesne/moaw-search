@@ -13,6 +13,8 @@ OpenAI models used are:
 
 ## How it works
 
+### Architecture
+
 ```mermaid
 graph
   user(["User"])
@@ -35,6 +37,36 @@ graph
   api -- Search for similarities, index vectors --> qdrant
   ui -- Use APIs --> api
   user -- Navigate --> ui
+```
+
+### Sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+
+    actor User
+    participant PWA
+    participant API
+    participant Database
+    participant Cache
+    participant OpenAI
+
+    User ->> PWA: Fill text
+    PWA ->> API: Get answers
+    API ->> Cache: Test if there is a cached response
+
+    alt No cache
+        API ->> OpenAI: Generate embedding
+        API ->> Database: Search for vector similarities
+        API ->> Cache: Store results
+    end
+
+    API ->> API: Generate suggestion token
+    API ->> Cache: Store suggestion model
+    API ->> PWA: Answer with the results
+
+    User ->> PWA: See results
 ```
 
 ## How to use
