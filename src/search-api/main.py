@@ -8,7 +8,7 @@ from models.suggestion import SuggestionModel
 from qdrant_client import QdrantClient
 from redis import Redis
 from tenacity import retry, stop_after_attempt
-from typing import Optional, List
+from typing import List
 from uuid import uuid4, UUID
 import aiohttp
 import logging
@@ -51,6 +51,8 @@ QD_HOST = os.getenv("QD_HOST")
 QD_METRIC = qmodels.Distance.DOT
 qd_client = QdrantClient(host=QD_HOST, port=6333)
 # Init Redis
+GLOBAL_CACHE_TTL_SECS = 60 * 60 # 1 hour
+SUGGESTION_TOKEN_TTL_SECS = 60 # 1 minute
 REDIS_HOST = os.getenv("REDIS_HOST")
 redis_client = Redis(
     db=0,
@@ -89,7 +91,7 @@ async def health_liveness_get() -> None:
     return None
 
 
-async def search_answer(query: str, limit: int):
+async def search_answer(query: str, limit: int) -> List[any]:
     vector = await vector_from_text(
         textwrap.dedent(
             f"""
@@ -102,9 +104,6 @@ async def search_answer(query: str, limit: int):
         )
     )
 
-    # Get total number of documents in collection
-    total = qd_client.count(collection_name=QD_COLLECTION, exact=False).count
-
     search_params = qmodels.SearchParams(hnsw_ef=128, exact=False)
 
     # Get query answer
@@ -116,17 +115,26 @@ async def search_answer(query: str, limit: int):
     )
     logger.debug(f"Found {len(results)} results")
 
-    return results, total
+    return results
 
 
-@api.get("/suggestion/{token}", name="Get suggestion from a search")
+@api.get("/suggestion/{token}", name="Get suggestion from a search", description=f"Suggestions are cached for {GLOBAL_CACHE_TTL_SECS} seconds.")
 async def suggestion(token: UUID) -> SuggestionModel:
-    model_raw = redis_client.get(token.hex)
+    logger.info(f"Suggesting for {token}")
 
-    if not model_raw:
+    token_cache_key = f"token:{token.hex}"
+
+    search_model_raw = redis_client.get(token_cache_key)
+    if not search_model_raw:
         raise HTTPException(status_code=404, detail="Suggestion not found or expired")
+    search_model = SearchModel.parse_raw(search_model_raw)
 
-    model = SearchModel.parse_raw(model_raw)
+    suggestion_cache_key = f"suggestion:{search_model.query}"
+
+    model_raw = redis_client.get(suggestion_cache_key)
+    if model_raw:
+        logger.debug("Found suggestion in cache")
+        return SuggestionModel.parse_raw(model_raw)
 
     prompt = textwrap.dedent(
         f"""
@@ -154,13 +162,13 @@ async def suggestion(token: UUID) -> SuggestionModel:
         Awnser with a help to find the workshop.
 
         QUERY START
-        {model.query}
+        {search_model.query}
         QUERY END
 
     """
     )
 
-    for i, result in enumerate(model.answers):
+    for i, result in enumerate(search_model.answers):
         prompt += textwrap.dedent(
             f"""
             WORKSHOP START #{i}
@@ -186,29 +194,42 @@ async def suggestion(token: UUID) -> SuggestionModel:
         )
 
     comletion = await completion_from_text(prompt)
+    model = SuggestionModel(message=comletion)
+    redis_client.set(suggestion_cache_key, model.json(), ex=GLOBAL_CACHE_TTL_SECS)
+    return model
 
-    return SuggestionModel(message=comletion)
 
-
-@api.get("/search", name="Get search results")
+@api.get("/search", name="Get search results", description=f"Search results are cached for {GLOBAL_CACHE_TTL_SECS} seconds. Suggestion tokens are cached for {SUGGESTION_TOKEN_TTL_SECS} seconds.")
 async def search(query: str, limit: int = 10) -> SearchModel:
     start = time.process_time()
     logger.info(f"Searching for {query}")
-    results, total = await search_answer(query, limit)
-
-    answers = []
-    for res in results:
-        try:
-            answers.append(
-                SearchAnswerModel(
-                    metadata=MetadataModel(**res.payload),
-                    score=res.score,
-                )
-            )
-        except TypeError:
-            logger.exception(f"Error parsing model: {res.id}")
 
     suggestion_token = uuid4().hex
+    search_cache_key = f"search:{query}-{limit}"
+    token_cache_key = f"token:{suggestion_token}"
+
+    model_raw = redis_client.get(search_cache_key)
+    if model_raw:
+        model = SearchModel.parse_raw(model_raw)
+        answers = model.answers
+        total = model.stats.total
+        logger.debug("Found cached results")
+
+    else:
+        logger.debug("No cached results found")
+        total = qd_client.count(collection_name=QD_COLLECTION, exact=False).count
+        results = await search_answer(query, limit)
+        answers = []
+        for res in results:
+            try:
+                answers.append(
+                    SearchAnswerModel(
+                        metadata=MetadataModel(**res.payload),
+                        score=res.score,
+                    )
+                )
+            except TypeError:
+                logger.exception(f"Error parsing model: {res.id}")
 
     model = SearchModel(
         answers=answers,
@@ -217,8 +238,8 @@ async def search(query: str, limit: int = 10) -> SearchModel:
         suggestion_token=suggestion_token,
     )
 
-    # Token is valid for 10 seconds
-    redis_client.set(suggestion_token, model.json(), ex=10)
+    redis_client.set(search_cache_key, model.json(), ex=GLOBAL_CACHE_TTL_SECS)
+    redis_client.set(token_cache_key, model.json(), ex=SUGGESTION_TOKEN_TTL_SECS)
 
     return model
 

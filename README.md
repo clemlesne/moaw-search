@@ -11,6 +11,32 @@ OpenAI models used are:
 
 ![Application screenshot](docs/main.png)
 
+## How it works
+
+```mermaid
+graph
+  user(["User"])
+
+  api["Search service\n(REST API)"]
+  moaw["MOAW\n(website)"]
+  qdrant[("Qdrant\n(disk)")]
+  redis[("Redis\n(memory)")]
+  ui["Search UI\n(PWA)"]
+
+  subgraph "OpenAI"
+    oai_ada["ADA embedding"]
+    oai_gpt["GPT completions"]
+  end
+
+  api -- Cache entities --> redis
+  api -- Crawl data for indexing --> moaw
+  api -- Generate completions --> oai_gpt
+  api -- Generate embeddings --> oai_ada
+  api -- Search for similarities, index vectors --> qdrant
+  ui -- Use APIs --> api
+  user -- Navigate --> ui
+```
+
 ## How to use
 
 ### Run the locally

@@ -8,7 +8,7 @@ install:
 	python3 -m pip install -r requirements.txt
 
 start:
-	python3 -m uvicorn main:api --reload --port 8081
+	VERSION=$(version_full) python3 -m uvicorn main:api --reload --port 8081
 
 build:
 	$(docker) build \
