@@ -51,8 +51,8 @@ QD_HOST = os.getenv("QD_HOST")
 QD_METRIC = qmodels.Distance.DOT
 qd_client = QdrantClient(host=QD_HOST, port=6333)
 # Init Redis
-GLOBAL_CACHE_TTL_SECS = 60 * 60 # 1 hour
-SUGGESTION_TOKEN_TTL_SECS = 60 # 1 minute
+GLOBAL_CACHE_TTL_SECS = 60 * 60  # 1 hour
+SUGGESTION_TOKEN_TTL_SECS = 60  # 1 minute
 REDIS_HOST = os.getenv("REDIS_HOST")
 redis_client = Redis(
     db=0,
@@ -118,7 +118,11 @@ async def search_answer(query: str, limit: int) -> List[any]:
     return results
 
 
-@api.get("/suggestion/{token}", name="Get suggestion from a search", description=f"Suggestions are cached for {GLOBAL_CACHE_TTL_SECS} seconds.")
+@api.get(
+    "/suggestion/{token}",
+    name="Get suggestion from a search",
+    description=f"Suggestions are cached for {GLOBAL_CACHE_TTL_SECS} seconds.",
+)
 async def suggestion(token: UUID) -> SuggestionModel:
     logger.info(f"Suggesting for {token}")
 
@@ -199,7 +203,11 @@ async def suggestion(token: UUID) -> SuggestionModel:
     return model
 
 
-@api.get("/search", name="Get search results", description=f"Search results are cached for {GLOBAL_CACHE_TTL_SECS} seconds. Suggestion tokens are cached for {SUGGESTION_TOKEN_TTL_SECS} seconds.")
+@api.get(
+    "/search",
+    name="Get search results",
+    description=f"Search results are cached for {GLOBAL_CACHE_TTL_SECS} seconds. Suggestion tokens are cached for {SUGGESTION_TOKEN_TTL_SECS} seconds.",
+)
 async def search(query: str, limit: int = 10) -> SearchModel:
     start = time.process_time()
     logger.info(f"Searching for {query}")

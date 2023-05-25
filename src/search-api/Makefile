@@ -16,3 +16,6 @@ build:
 		--tag $(container_name):$(version_small) \
 		--tag $(container_name):latest \
 		.
+
+test:
+	python3 -m black .
