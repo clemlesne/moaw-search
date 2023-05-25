@@ -12,7 +12,11 @@ RUN npm install \
   && npm run build
 
 FROM docker.io/library/nginx:1.23-alpine3.17
+FROM docker.io/nginxinc/nginx-unprivileged:1.23-alpine3.17
+
+USER root
 
 RUN rm -rf /usr/share/nginx/html/*
+COPY --from=build --chown=$UID:$UID /app/dist /usr/share/nginx/html
 
-COPY --from=build /app/dist /usr/share/nginx/html
+USER $UID
