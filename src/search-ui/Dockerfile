@@ -1,3 +1,4 @@
+# Build container
 FROM docker.io/library/node:20-alpine3.17 as build
 
 ARG VERSION
@@ -11,7 +12,7 @@ COPY . .
 RUN npm install \
   && npm run build
 
-FROM docker.io/library/nginx:1.23-alpine3.17
+# Output container
 FROM docker.io/nginxinc/nginx-unprivileged:1.23-alpine3.17
 
 USER root

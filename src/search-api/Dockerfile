@@ -1,4 +1,4 @@
-# Build container (1/2)
+# Build container
 FROM docker.io/library/python:3.11-slim-bullseye as build
 
 RUN apt-get update \
@@ -11,7 +11,7 @@ ENV PATH=/venv/bin:$PATH
 COPY requirements.txt .
 RUN python3 -m pip install --requirement requirements.txt
 
-# Output container (2/2)
+# Output container
 FROM docker.io/library/python:3.11-slim-bullseye
 
 ARG VERSION
