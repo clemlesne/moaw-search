@@ -39,7 +39,9 @@ graph
 
 ## How to use
 
-### Run the locally
+### Run locally
+
+This will build locally the container, start them, and display the logs:
 
 ```bash
 make build start logs
@@ -51,13 +53,13 @@ Then, go to [http://127.0.0.1:8081](http://127.0.0.1:8081).
 
 Components are built as containers:
 
-- Search API: `moaw-search-service/search-api:latest`
-- Search web UI: `moaw-search-service/search-ui:latest`
+- Search API: `ghcr.io/clemlesne/moaw-search-service/search-api`
+- Search web UI: `ghcr.io/clemlesne/moaw-search-service/search-ui`
 
 Databases are also containerized, sourced from their official images:
 
 - Redis: `docker.io/redis`
-- Qdrant: `docker.io/qdrant/qdrant:latest`
+- Qdrant: `docker.io/qdrant/qdrant`
 
 ### Get API docs
 
