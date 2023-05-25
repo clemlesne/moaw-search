@@ -22,6 +22,7 @@ spec:
       containers:
         - name: search-ui
           image: "ghcr.io/clemlesne/moaw-search/search-ui:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8080
