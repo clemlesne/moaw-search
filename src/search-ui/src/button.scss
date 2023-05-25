@@ -1,0 +1,25 @@
+button {
+  align-items: center;
+  background: none;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: row;
+  padding: .5rem 1rem;
+
+  &:not(:disabled) {
+    cursor: pointer;
+
+    &:hover {
+      background-color: var(--background-active);
+    }
+
+    &:active {
+      outline: 2px solid var(--border);
+    }
+  }
+
+  > *:not(:last-child) {
+    margin-right: .5rem;
+  }
+}

@@ -1,6 +1,9 @@
 .suggestion {
+  align-items: flex-start;
   border-radius: var(--radius);
   border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
   margin: 1rem 1.5rem;
   padding: 1rem;
 

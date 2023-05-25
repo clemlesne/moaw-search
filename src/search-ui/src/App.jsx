@@ -1,11 +1,11 @@
+import "./app.scss"
 import { useState } from "react";
 import axios from "axios";
+import Error from "./Error";
 import Result from "./Result";
 import SearchBar from "./SearchBar";
-import Error from "./Error";
-import Suggestion from "./Suggestion";
 import Stats from "./Stats";
-import "./app.scss"
+import Suggestion from "./Suggestion";
 
 function App() {
   const [answers, setAnswers] = useState([]);
