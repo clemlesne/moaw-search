@@ -1,0 +1,27 @@
+image:
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+replicaCount: 3
+nameOverride: ""
+fullnameOverride: ""
+
+ingress:
+  host: moaw-search.shopping-cart-devops-demo.lesne.pro
+  tls: {}
+
+secrets:
+  openaiKey: ""
+
+redis:
+  auth:
+    enabled: false
+  replica:
+    replicaCount: 0
+
+qdrant:
+  replicaCount: 3
+  updateConfigurationOnChange: true
+  persistence:
+    size: 10Gi
+    storageClassName: managed-csi

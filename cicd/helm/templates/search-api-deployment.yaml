@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "moaw-search.fullname" . }}-search-api
+  labels:
+    {{- include "moaw-search.labels" . | nindent 4 }}
+    app.kubernetes.io/component: search-api
+spec:
+  replicas: {{ .Values.replicaCount | int | required "A value for .Values.replicaCount is required" }}
+  selector:
+    matchLabels:
+      {{- include "moaw-search.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: search-api
+  template:
+    metadata:
+      labels:
+        {{- include "moaw-search.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: search-api
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/search-api-secret.yaml") . | sha256sum }}
+    spec:
+      containers:
+        - name: search-api
+          image: "ghcr.io/clemlesne/moaw-search/search-api:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            periodSeconds: 5
+            timeoutSeconds: 5
+            httpGet:
+              path: /health/liveness
+              port: http
+          startupProbe:
+            periodSeconds: 5
+            failureThreshold: 30
+            tcpSocket:
+              port: http
+          env:
+            - name: ROOT_PATH
+              value: /{{ include "moaw-search.fullname" . }}-search-api
+            - name: OPENAI_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "moaw-search.fullname" . }}-search-api
+                  key: openaiKey
+            - name: REDIS_HOST
+              value: {{ include "common.names.fullname" .Subcharts.redis }}-master
+            - name: QD_HOST
+              value: {{ include "qdrant.fullname" .Subcharts.qdrant }}

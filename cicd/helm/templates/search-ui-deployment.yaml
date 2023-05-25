@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "moaw-search.fullname" . }}-search-ui
+  labels:
+    {{- include "moaw-search.labels" . | nindent 4 }}
+    app.kubernetes.io/component: search-ui
+spec:
+  replicas: {{ .Values.replicaCount | int | required "A value for .Values.replicaCount is required" }}
+  selector:
+    matchLabels:
+      {{- include "moaw-search.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: search-ui
+  template:
+    metadata:
+      labels:
+        {{- include "moaw-search.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: search-ui
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/search-ui-config.yaml") . | sha256sum }}
+    spec:
+      containers:
+        - name: search-ui
+          image: "ghcr.io/clemlesne/moaw-search/search-ui:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            periodSeconds: 5
+            timeoutSeconds: 5
+            httpGet:
+              path: /health/liveness
+              port: http
+          startupProbe:
+            periodSeconds: 5
+            failureThreshold: 30
+            tcpSocket:
+              port: http
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "moaw-search.fullname" . }}-search-ui
+        - name: tmp
+          emptyDir: {}

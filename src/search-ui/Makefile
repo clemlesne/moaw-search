@@ -2,7 +2,7 @@ docker := docker
 version_small ?= $(shell $(MAKE) --directory ../../ --silent version)
 version_full ?= $(shell $(MAKE) --directory ../../ --silent version-full)
 component_name := search-ui
-container_name := ghcr.io/clemlesne/moaw-search-service/$(component_name)
+container_name := ghcr.io/clemlesne/moaw-search/$(component_name)
 
 install:
 	npm install

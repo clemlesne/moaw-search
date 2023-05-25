@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "moaw-search.fullname" . }}-search-ui
+  labels:
+    {{- include "moaw-search.labels" . | nindent 4 }}
+    app.kubernetes.io/component: search-ui
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      server_name search-ui;
+
+      location = /health/liveness {
+        return 204;
+      }
+
+      location / {
+        # Use static files
+        root /usr/share/nginx/html;
+        try_files $uri /index.html;
+
+        # Rewrite the API URL
+        sub_filter 'http://127.0.0.1:8081' 'https://{{ .Values.ingress.host }}/{{ include "moaw-search.fullname" . }}-search-api';
+        sub_filter_once off;
+        sub_filter_types *;
+      }
+    }

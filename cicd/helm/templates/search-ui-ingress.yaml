@@ -1,0 +1,35 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ include "moaw-search.fullname" . }}-search-ui
+  labels:
+    {{- include "moaw-search.labels" . | nindent 4 }}
+    app.kubernetes.io/component: search-ui
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`{{ .Values.ingress.host }}`)
+      kind: Rule
+      services:
+        - name: {{ include "moaw-search.fullname" . }}-search-ui
+          port: 8080
+      middlewares:
+        - name: {{ include "moaw-search.fullname" . }}-search-ui-security
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "moaw-search.fullname" . }}-search-ui-security
+  labels:
+    {{- include "moaw-search.labels" . | nindent 4 }}
+    app.kubernetes.io/component: search-ui
+spec:
+  headers:
+    browserXssFilter: true
+    frameDeny: true
+    stsIncludeSubdomains: true
+    stsPreload: true
+    stsSeconds: 31536000

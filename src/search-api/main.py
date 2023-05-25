@@ -32,17 +32,20 @@ OAI_EMBEDDING_MODEL = "text-embedding-ada-002"
 OAI_COMPLETION_MODEL = "gpt-3.5-turbo"
 openai.api_key = os.getenv("OPENAI_KEY")
 # Init FastAPI
+ROOT_PATH = os.getenv("ROOT_PATH")
+logger.info(f"Using root path: {ROOT_PATH}")
 api = FastAPI(
-    description="Search API for MOAW",
-    title="search-api",
-    version=VERSION,
     contact={
-        "url": "https://github.com/clemlesne/moaw-search-service",
+        "url": "https://github.com/clemlesne/moaw-search",
     },
+    description="Search API for MOAW",
     license_info={
         "name": "Apache-2.0",
-        "url": "https://github.com/clemlesne/moaw-search-service/blob/master/LICENCE",
+        "url": "https://github.com/clemlesne/moaw-search/blob/master/LICENCE",
     },
+    root_path=ROOT_PATH,
+    title="search-api",
+    version=VERSION,
 )
 # Init Qdrant
 QD_COLLECTION = "moaw"

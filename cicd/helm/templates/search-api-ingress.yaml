@@ -1,0 +1,48 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ include "moaw-search.fullname" . }}-search-api
+  labels:
+    {{- include "moaw-search.labels" . | nindent 4 }}
+    app.kubernetes.io/component: search-api
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`{{ .Values.ingress.host }}`) && PathPrefix(`/{{ include "moaw-search.fullname" . }}-search-api`)
+      kind: Rule
+      services:
+        - name: {{ include "moaw-search.fullname" . }}-search-api
+          port: 8080
+      middlewares:
+        - name: {{ include "moaw-search.fullname" . }}-search-api-prefix
+        - name: {{ include "moaw-search.fullname" . }}-search-api-security
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "moaw-search.fullname" . }}-search-api-prefix
+  labels:
+    {{- include "moaw-search.labels" . | nindent 4 }}
+    app.kubernetes.io/component: search-api
+spec:
+  stripPrefix:
+    prefixes:
+      - "/{{ include "moaw-search.fullname" . }}-search-api"
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "moaw-search.fullname" . }}-search-api-security
+  labels:
+    {{- include "moaw-search.labels" . | nindent 4 }}
+    app.kubernetes.io/component: search-api
+spec:
+  headers:
+    browserXssFilter: true
+    frameDeny: true
+    stsIncludeSubdomains: true
+    stsPreload: true
+    stsSeconds: 31536000

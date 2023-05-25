@@ -79,7 +79,7 @@ function App() {
           {import.meta.env.VITE_VERSION} ({import.meta.env.MODE})
         </span>
         <a
-          href="https://github.com/clemlesne/moaw-search-service"
+          href="https://github.com/clemlesne/moaw-search"
           target="_blank"
           rel="noreferrer"
         >
