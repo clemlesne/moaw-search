@@ -1,4 +1,5 @@
 .results {
+  flex-grow: 1;
   max-width: 768px;
 
   &.results--answersLoading {
@@ -7,7 +8,10 @@
 }
 
 .footer {
-  margin: 2rem 2.5rem;
-  font-size: .8rem;
+  align-items: flex-start;
   color: var(--color-muted);
+  display: flex;
+  flex-direction: column;
+  font-size: .8rem;
+  margin: 2rem 2.5rem;
 }

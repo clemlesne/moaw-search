@@ -7,7 +7,7 @@ services:
     ports:
       - 6379:6379
   qdrant:
-    image: docker.io/qdrant/qdrant:latest
+    image: docker.io/qdrant/qdrant:v1.2.0
     networks:
       - moaw-search-service
     ports:
@@ -15,7 +15,7 @@ services:
     volumes:
       - qdrant-data:/qdrant/storage
   search-api:
-    image: moaw-search-service/search-api:latest
+    image: ghcr.io/clemlesne/moaw-search-service/search-api:latest
     environment:
       QD_HOST: qdrant
       REDIS_HOST: redis
@@ -28,7 +28,7 @@ services:
     volumes:
       - .env:/app/.env
   search-ui:
-    image: moaw-search-service/search-ui:latest
+    image: ghcr.io/clemlesne/moaw-search-service/search-ui:latest
     user: root
     networks:
       - moaw-search-service

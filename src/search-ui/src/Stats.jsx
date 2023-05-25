@@ -1,9 +1,11 @@
-import "./stats.scss"
+import "./stats.scss";
 
 function Stats({ total, time }) {
   return (
-    <p className="stats"> About {total} results ({time.toFixed(3).toLocaleString()} seconds)</p>
-  )
+    <p className="stats">
+      About {total} results ({time.toFixed(3).toLocaleString()} seconds)
+    </p>
+  );
 }
 
-export default Stats
+export default Stats;

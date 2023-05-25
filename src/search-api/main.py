@@ -8,7 +8,7 @@ from models.suggestion import SuggestionModel
 from qdrant_client import QdrantClient
 from redis import Redis
 from tenacity import retry, stop_after_attempt
-from typing import Optional, List
+from typing import List
 from uuid import uuid4, UUID
 import aiohttp
 import logging
@@ -22,16 +22,28 @@ import time
 
 # Init config
 load_dotenv()
+VERSION = os.getenv("VERSION")
 # Init logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 # Init OpenAI
 OAI_EMBEDDING_MODEL = "text-embedding-ada-002"
-OAI_COMPLETION_MODEL = "text-davinci-003"
+OAI_COMPLETION_MODEL = "gpt-3.5-turbo"
 openai.api_key = os.getenv("OPENAI_KEY")
 # Init FastAPI
-api = FastAPI(title="moaw-search")
+api = FastAPI(
+    description="Search API for MOAW",
+    title="search-api",
+    version=VERSION,
+    contact={
+        "url": "https://github.com/clemlesne/moaw-search-service",
+    },
+    license_info={
+        "name": "Apache-2.0",
+        "url": "https://github.com/clemlesne/moaw-search-service/blob/master/LICENCE",
+    },
+)
 # Init Qdrant
 QD_COLLECTION = "moaw"
 QD_DIMENSION = 1536
@@ -39,6 +51,8 @@ QD_HOST = os.getenv("QD_HOST")
 QD_METRIC = qmodels.Distance.DOT
 qd_client = QdrantClient(host=QD_HOST, port=6333)
 # Init Redis
+GLOBAL_CACHE_TTL_SECS = 60 * 60 # 1 hour
+SUGGESTION_TOKEN_TTL_SECS = 60 # 1 minute
 REDIS_HOST = os.getenv("REDIS_HOST")
 redis_client = Redis(
     db=0,
@@ -60,40 +74,37 @@ except Exception:
         vectors_config=qmodels.VectorParams(
             distance=QD_METRIC,
             size=QD_DIMENSION,
-        )
+        ),
     )
 
 # Setup CORS
 api.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
     allow_headers=["*"],
+    allow_methods=["*"],
+    allow_origins=["*"],
 )
 
 
-@api.get("/health/liveness", status_code=204)
+@api.get("/health/liveness", status_code=204, name="Healthckeck liveness")
 async def health_liveness_get() -> None:
     return None
 
 
-async def search_answer(query: str, limit: int):
-    vector = await vector_from_text(textwrap.dedent(f"""
+async def search_answer(query: str, limit: int) -> List[any]:
+    vector = await vector_from_text(
+        textwrap.dedent(
+            f"""
         Today, we are the {datetime.now()}.
 
         QUERY START
         {query}
         QUERY END
-    """))
-
-    # Get total number of documents in collection
-    total = qd_client.count(collection_name=QD_COLLECTION, exact=False).count
-
-    search_params = qmodels.SearchParams(
-        hnsw_ef=128,
-        exact=False
+    """
+        )
     )
+
+    search_params = qmodels.SearchParams(hnsw_ef=128, exact=False)
 
     # Get query answer
     results = qd_client.search(
@@ -104,26 +115,37 @@ async def search_answer(query: str, limit: int):
     )
     logger.debug(f"Found {len(results)} results")
 
-    return results, total
+    return results
 
 
-@api.get("/suggestion/{token}")
+@api.get("/suggestion/{token}", name="Get suggestion from a search", description=f"Suggestions are cached for {GLOBAL_CACHE_TTL_SECS} seconds.")
 async def suggestion(token: UUID) -> SuggestionModel:
-    model_raw = redis_client.get(token.hex)
+    logger.info(f"Suggesting for {token}")
 
-    if not model_raw:
+    token_cache_key = f"token:{token.hex}"
+
+    search_model_raw = redis_client.get(token_cache_key)
+    if not search_model_raw:
         raise HTTPException(status_code=404, detail="Suggestion not found or expired")
+    search_model = SearchModel.parse_raw(search_model_raw)
 
-    model = SearchModel.parse_raw(model_raw)
+    suggestion_cache_key = f"suggestion:{search_model.query}"
 
-    prompt = textwrap.dedent(f"""
+    model_raw = redis_client.get(suggestion_cache_key)
+    if model_raw:
+        logger.debug("Found suggestion in cache")
+        return SuggestionModel.parse_raw(model_raw)
+
+    prompt = textwrap.dedent(
+        f"""
         You are a training consultant. You are working for Microsoft. You have 20 years of experience in the technology industry. You are looking for a workshop. Today, we are the {datetime.now()}.
 
         You MUST:
         - Be kind and respectful
         - Do not invent workshops, only use the ones you have seen
         - Limit your answer few sentences
-        - Sources are only worhsops you have seen
+        - Sources are only workshops you have seen
+        - Use imperative form (example: "Do this" instead of "You should do this")
         - Write links with Markdown syntax (example: [which can be found here](https://google.com))
 
         You SHOULD:
@@ -132,6 +154,7 @@ async def suggestion(token: UUID) -> SuggestionModel:
         - Feel free to propose a new workshop idea if you do not find any relevant one
         - If you don't know, don't answer
         - QUERY defines the workshop you are looking for
+        - Use your knowledge to add value to your proposal
         - WORKSHOP are sorted by relevance, from the most relevant to the least relevant
         - WORKSHOP are workshops examples you will base your answer
         - You can precise the way you want to execute the workshop
@@ -139,13 +162,15 @@ async def suggestion(token: UUID) -> SuggestionModel:
         Awnser with a help to find the workshop.
 
         QUERY START
-        {model.query}
+        {search_model.query}
         QUERY END
 
-    """)
+    """
+    )
 
-    for i, result in enumerate(model.answers):
-        prompt += textwrap.dedent(f"""
+    for i, result in enumerate(search_model.answers):
+        prompt += textwrap.dedent(
+            f"""
             WORKSHOP START #{i}
             Audience:
             {result.metadata.audience}
@@ -165,32 +190,46 @@ async def suggestion(token: UUID) -> SuggestionModel:
             {result.metadata.url}
             WORKSHOP END
 
-        """)
+        """
+        )
 
     comletion = await completion_from_text(prompt)
+    model = SuggestionModel(message=comletion)
+    redis_client.set(suggestion_cache_key, model.json(), ex=GLOBAL_CACHE_TTL_SECS)
+    return model
 
-    return SuggestionModel(message=comletion)
 
-
-@api.get("/search")
+@api.get("/search", name="Get search results", description=f"Search results are cached for {GLOBAL_CACHE_TTL_SECS} seconds. Suggestion tokens are cached for {SUGGESTION_TOKEN_TTL_SECS} seconds.")
 async def search(query: str, limit: int = 10) -> SearchModel:
     start = time.process_time()
     logger.info(f"Searching for {query}")
-    results, total = await search_answer(query, limit)
-
-    answers = []
-    for res in results:
-        try:
-            answers.append(
-                SearchAnswerModel(
-                    metadata=MetadataModel(**res.payload),
-                    score=res.score,
-                )
-            )
-        except TypeError:
-            logger.exception(f"Error parsing model: {res.id}")
 
     suggestion_token = uuid4().hex
+    search_cache_key = f"search:{query}-{limit}"
+    token_cache_key = f"token:{suggestion_token}"
+
+    model_raw = redis_client.get(search_cache_key)
+    if model_raw:
+        model = SearchModel.parse_raw(model_raw)
+        answers = model.answers
+        total = model.stats.total
+        logger.debug("Found cached results")
+
+    else:
+        logger.debug("No cached results found")
+        total = qd_client.count(collection_name=QD_COLLECTION, exact=False).count
+        results = await search_answer(query, limit)
+        answers = []
+        for res in results:
+            try:
+                answers.append(
+                    SearchAnswerModel(
+                        metadata=MetadataModel(**res.payload),
+                        score=res.score,
+                    )
+                )
+            except TypeError:
+                logger.exception(f"Error parsing model: {res.id}")
 
     model = SearchModel(
         answers=answers,
@@ -199,17 +238,17 @@ async def search(query: str, limit: int = 10) -> SearchModel:
         suggestion_token=suggestion_token,
     )
 
-    # Token is valid for 10 seconds
-    redis_client.set(suggestion_token, model.json(), ex=10)
+    redis_client.set(search_cache_key, model.json(), ex=GLOBAL_CACHE_TTL_SECS)
+    redis_client.set(token_cache_key, model.json(), ex=SUGGESTION_TOKEN_TTL_SECS)
 
     return model
 
 
-@api.get("/index")
+@api.get("/index", name="Index workshops from microsoft.github.io")
 async def index() -> None:
     # load JSON with aiohttp
     async with aiohttp.ClientSession() as session:
-        workshops = await session.get('https://microsoft.github.io/moaw/workshops.json')
+        workshops = await session.get("https://microsoft.github.io/moaw/workshops.json")
         workshops = await workshops.json()
         ids = []
         payloads = []
@@ -251,7 +290,8 @@ async def index() -> None:
             content_text = re.sub(r" +", " ", content_text)
 
             # Create prompt for OpenAI
-            text = textwrap.dedent(f"""
+            text = textwrap.dedent(
+                f"""
                 Title:
                 {workshop['title']}
                 Description:
@@ -266,29 +306,32 @@ async def index() -> None:
                 {workshop['audience']}
                 Last updated:
                 {workshop['lastUpdated']}
-            """)
+            """
+            )
             logger.debug(f"Text: {text}")
             vector = await vector_from_text(text)
 
             # Create Qdrant payload
             vectors.append(vector)
             ids.append(workshop["id"])
-            payloads.append({
-                "audience": workshop["audience"],
-                "authors": workshop["authors"],
-                "description": workshop["description"],
-                "language": workshop["language"],
-                "last_updated": workshop["lastUpdated"],
-                "tags": workshop["tags"],
-                "title": workshop["title"],
-                "url": url,
-            })
+            payloads.append(
+                {
+                    "audience": workshop["audience"],
+                    "authors": workshop["authors"],
+                    "description": workshop["description"],
+                    "language": workshop["language"],
+                    "last_updated": workshop["lastUpdated"],
+                    "tags": workshop["tags"],
+                    "title": workshop["title"],
+                    "url": url,
+                }
+            )
 
         # Insert into Qdrant
         qd_client.upsert(
             collection_name=QD_COLLECTION,
             points=qmodels.Batch(
-                ids = ids,
+                ids=ids,
                 payloads=payloads,
                 vectors=vectors,
             ),
@@ -310,9 +353,9 @@ async def vector_from_text(prompt: str) -> List[float]:
 @retry(stop=stop_after_attempt(3))
 async def completion_from_text(prompt: str) -> str:
     logger.debug(f"Getting completion for text: {prompt}")
-    response = openai.Completion.create(
-        engine=OAI_COMPLETION_MODEL,
-        max_tokens=512,
-        prompt=prompt,
+    # Use chat completion to get a more natural response and lower the usage cost
+    response = openai.ChatCompletion.create(
+        model=OAI_COMPLETION_MODEL,
+        messages=[{"role": "user", "content": prompt}],
     )
-    return response.choices[0].text
+    return response.choices[0].message.content

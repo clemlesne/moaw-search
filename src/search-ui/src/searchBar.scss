@@ -10,8 +10,11 @@
   z-index: 1000;
 
   > * {
-    margin-right: 1rem;
     font-size: 1.15rem;
+  }
+
+  > *:not(:last-child) {
+    margin-right: 1rem;
   }
 
   h1 {
@@ -26,26 +29,7 @@
     flex-basis: 40rem;
 
     &:focus {
-      outline: none;
-    }
-  }
-
-  button {
-    background: none;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    padding: .5rem;
-
-    &:not(:disabled) {
-      cursor: pointer;
-
-      &:hover {
-        background-color: var(--background-active);
-      }
-
-      &:active {
-        outline: 2px solid var(--border);
-      }
+      outline: 2px solid var(--border-active);
     }
   }
 }
