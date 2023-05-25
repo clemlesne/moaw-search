@@ -1,8 +1,15 @@
 # MOAW Search
 
-MOAW Search is a search engine for the [MOAW](https://microsoft.github.io/moaw/) dataset. It use OpenAI Embedding to find the most similar sentences to the query. Search queries can be asked in natural language.
+> This project is a proof of concept. It is not intended to be used in production. Nevertheless, it follows best practices and can be used as a template for a production-ready project.
 
-![Application screenshot](docs/screenshot.png)
+MOAW Search is a search engine for the [MOAW](https://microsoft.github.io/moaw/) dataset. It use [OpenAI Embedding](https://platform.openai.com/docs/guides/embeddings) to find the most similar sentences to the query. Search queries can be asked in natural language.
+
+OpenAI models used are:
+
+- [`text-embedding-ada-002`](https://openai.com/blog/new-and-improved-embedding-model) for the search and data indexation
+- [`gpt-3.5-turbo`](https://platform.openai.com/docs/models/gpt-3-5) for the suggestions (`text-davinci-003` costs 10x more and this is sufficient for our use case)
+
+![Application screenshot](docs/main.png)
 
 ## How to use
 
@@ -12,6 +19,24 @@ MOAW Search is a search engine for the [MOAW](https://microsoft.github.io/moaw/)
 make build start logs
 ```
 
-Then, to to [http://127.0.0.1:8080](http://127.0.0.1:8080).
+Then, go to [http://127.0.0.1:8081](http://127.0.0.1:8081).
+
+### Deploy in production
+
+Components are built as containers:
+
+- Search API: `moaw-search-service/search-api:latest`
+- Search web UI: `moaw-search-service/search-ui:latest`
+
+Databases are also containerized, sourced from their official images:
+
+- Redis: `docker.io/redis`
+- Qdrant: `docker.io/qdrant/qdrant:latest`
+
+### Get API docs
+
+Go to [http://127.0.0.1:8081/redoc](http://127.0.0.1:8081/redoc).
+
+![Documentation endpoint](docs/doc.png)
 
 ## [Authors](./AUTHORS.md)
