@@ -1,6 +1,6 @@
 # MOAW Search
 
-> This project is a proof of concept. It is not intended to be used in production. Nevertheless, it follows best practices and can be used as a template for a production-ready project.
+**Demo available at [moaw-search.shopping-cart-devops-demo.lesne.pro](https://moaw-search.shopping-cart-devops-demo.lesne.pro/).**
 
 MOAW Search is a search engine for the [MOAW](https://microsoft.github.io/moaw/) workshops. It use [OpenAI Embedding](https://platform.openai.com/docs/guides/embeddings) to find the most similar sentences to the query. Search queries can be asked in natural language.
 
