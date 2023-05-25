@@ -54,12 +54,7 @@ qd_client = QdrantClient(host=QD_HOST, port=6333)
 GLOBAL_CACHE_TTL_SECS = 60 * 60  # 1 hour
 SUGGESTION_TOKEN_TTL_SECS = 60  # 1 minute
 REDIS_HOST = os.getenv("REDIS_HOST")
-redis_client = Redis(
-    db=0,
-    decode_responses=True,
-    host=REDIS_HOST,
-    port=6379,
-)
+redis_client = Redis(db=0, host=REDIS_HOST, port=6379)
 
 # Ensure OpenAI API key is set
 if not openai.api_key:
