@@ -11,11 +11,11 @@ button {
     cursor: pointer;
 
     &:hover {
-      background-color: var(--background-active);
+      background-color: var(--background-muted);
     }
 
     &:active {
-      outline: 2px solid var(--border);
+      outline: 2px solid var(--border-active);
     }
   }
 

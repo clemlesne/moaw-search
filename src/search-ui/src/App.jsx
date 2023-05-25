@@ -1,4 +1,4 @@
-import "./app.scss"
+import "./app.scss";
 import { useState } from "react";
 import axios from "axios";
 import Error from "./Error";
@@ -17,13 +17,10 @@ function App() {
 
   const fetchSuggestion = async (token) => {
     setSuggestionLoading(true);
-    setSuggestion("");
-    await axios.get(
-        `http://127.0.0.1:8081/suggestion/${token}`,
-        {
-          timeout: 30000,
-        },
-      )
+    await axios
+      .get(`http://127.0.0.1:8081/suggestion/${token}`, {
+        timeout: 30000,
+      })
       .then((res) => {
         setError("");
         setSuggestion(res.data.message);
@@ -37,16 +34,19 @@ function App() {
 
   const fetchAnswers = async (value) => {
     setAnswersLoading(true);
-    await axios.get(
-        `http://127.0.0.1:8081/search?query=${value}&limit=10`,
-        {
-          timeout: 30000,
+    await axios
+      .get("http://127.0.0.1:8081/search", {
+        params: {
+          limit: 10,
+          query: value,
         },
-      )
+        timeout: 30000,
+      })
       .then((res) => {
         setError("");
         setAnswers(res.data.answers);
         setStats(res.data.stats);
+        setSuggestion("");
         fetchSuggestion(res.data.suggestion_token);
       })
       .catch((error) => {
@@ -59,21 +59,32 @@ function App() {
 
   return (
     <>
-      <SearchBar
-        fetchAnswers={fetchAnswers}
-        loading={answersLoading}
-      />
+      <SearchBar fetchAnswers={fetchAnswers} loading={answersLoading} />
       <div className={`results ${answersLoading && "results--answersLoading"}`}>
         {error && <Error code={error.code} message={error.message} />}
         {stats && <Stats total={stats.total} time={stats.time} />}
-        {(suggestion || suggestionLoading) && <Suggestion message={suggestion} loading={suggestionLoading} />}
+        {(suggestion || suggestionLoading) && (
+          <Suggestion message={suggestion} loading={suggestionLoading} />
+        )}
         {answers.map((answer) => (
-          <Result key={answer.metadata.id} metadata={answer.metadata} score={answer.score} />
+          <Result
+            key={answer.metadata.id}
+            metadata={answer.metadata}
+            score={answer.score}
+          />
         ))}
       </div>
       <footer className="footer">
-        <span>{import.meta.env.VITE_VERSION} ({import.meta.env.MODE})</span>
-        <a href="https://github.com/clemlesne/moaw-search-service" target="_blank" rel="noreferrer">Source code is open, let's talk about it!</a>
+        <span>
+          {import.meta.env.VITE_VERSION} ({import.meta.env.MODE})
+        </span>
+        <a
+          href="https://github.com/clemlesne/moaw-search-service"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Source code is open, let's talk about it!
+        </a>
       </footer>
     </>
   );

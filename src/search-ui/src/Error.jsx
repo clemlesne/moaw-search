@@ -1,4 +1,4 @@
-import "./error.scss"
+import "./error.scss";
 
 function Error({ code, message }) {
   return (
@@ -6,7 +6,7 @@ function Error({ code, message }) {
       <p>Code: {code}</p>
       <p>Message: {message}</p>
     </div>
-  )
+  );
 }
 
-export default Error
+export default Error;

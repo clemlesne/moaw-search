@@ -1,4 +1,4 @@
-import "./searchBar.scss"
+import "./searchBar.scss";
 import { useState } from "react";
 import Loader from "./Loader";
 import Button from "./Button";
@@ -14,13 +14,23 @@ const SearchBar = ({ fetchAnswers, loading }) => {
     <div className="search">
       <h1>🐱 MOAW Search</h1>
       <input
-        type="search"
-        placeholder="Search accross workshops..."
-        value={value}
+        name="search"
         onChange={handleSearchInputChange}
-        onKeyDown={(e) => (e.key === "Enter" && value.length > 0) ? fetchAnswers(value) : null }
+        onKeyDown={(e) =>
+          value.length > 0 && e.key === "Enter" && fetchAnswers(value)
+        }
+        onBlur={() => (value.length > 0 && !loading) && fetchAnswers(value)}
+        placeholder="Search accross workshops..."
+        type="search"
+        value={value}
       />
-      <Button disabled={value.length == 0 || loading} onClick={() => fetchAnswers(value)} text="Search" loading={loading} emopji="🔎" />
+      <Button
+        disabled={value.length == 0}
+        onClick={() => fetchAnswers(value)}
+        text="Search"
+        loading={loading}
+        emopji="🔎"
+      />
     </div>
   );
 };
