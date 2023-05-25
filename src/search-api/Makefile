@@ -2,7 +2,7 @@ docker := docker
 version_small ?= $(shell $(MAKE) --directory ../../ --silent version)
 version_full ?= $(shell $(MAKE) --directory ../../ --silent version-full)
 component_name := search-api
-container_name := ghcr.io/clemlesne/moaw-search-service/$(component_name)
+container_name := ghcr.io/clemlesne/moaw-search/$(component_name)
 
 install:
 	python3 -m pip install -r requirements.txt
@@ -16,3 +16,6 @@ build:
 		--tag $(container_name):$(version_small) \
 		--tag $(container_name):latest \
 		.
+
+test:
+	python3 -m black .

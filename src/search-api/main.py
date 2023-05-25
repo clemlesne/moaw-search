@@ -32,17 +32,20 @@ OAI_EMBEDDING_MODEL = "text-embedding-ada-002"
 OAI_COMPLETION_MODEL = "gpt-3.5-turbo"
 openai.api_key = os.getenv("OPENAI_KEY")
 # Init FastAPI
+ROOT_PATH = os.getenv("ROOT_PATH")
+logger.info(f"Using root path: {ROOT_PATH}")
 api = FastAPI(
-    description="Search API for MOAW",
-    title="search-api",
-    version=VERSION,
     contact={
-        "url": "https://github.com/clemlesne/moaw-search-service",
+        "url": "https://github.com/clemlesne/moaw-search",
     },
+    description="Search API for MOAW",
     license_info={
         "name": "Apache-2.0",
-        "url": "https://github.com/clemlesne/moaw-search-service/blob/master/LICENCE",
+        "url": "https://github.com/clemlesne/moaw-search/blob/master/LICENCE",
     },
+    root_path=ROOT_PATH,
+    title="search-api",
+    version=VERSION,
 )
 # Init Qdrant
 QD_COLLECTION = "moaw"
@@ -51,15 +54,10 @@ QD_HOST = os.getenv("QD_HOST")
 QD_METRIC = qmodels.Distance.DOT
 qd_client = QdrantClient(host=QD_HOST, port=6333)
 # Init Redis
-GLOBAL_CACHE_TTL_SECS = 60 * 60 # 1 hour
-SUGGESTION_TOKEN_TTL_SECS = 60 # 1 minute
+GLOBAL_CACHE_TTL_SECS = 60 * 60  # 1 hour
+SUGGESTION_TOKEN_TTL_SECS = 60  # 1 minute
 REDIS_HOST = os.getenv("REDIS_HOST")
-redis_client = Redis(
-    db=0,
-    decode_responses=True,
-    host=REDIS_HOST,
-    port=6379,
-)
+redis_client = Redis(db=0, host=REDIS_HOST, port=6379)
 
 # Ensure OpenAI API key is set
 if not openai.api_key:
@@ -118,7 +116,11 @@ async def search_answer(query: str, limit: int) -> List[any]:
     return results
 
 
-@api.get("/suggestion/{token}", name="Get suggestion from a search", description=f"Suggestions are cached for {GLOBAL_CACHE_TTL_SECS} seconds.")
+@api.get(
+    "/suggestion/{token}",
+    name="Get suggestion from a search",
+    description=f"Suggestions are cached for {GLOBAL_CACHE_TTL_SECS} seconds.",
+)
 async def suggestion(token: UUID) -> SuggestionModel:
     logger.info(f"Suggesting for {token}")
 
@@ -199,7 +201,11 @@ async def suggestion(token: UUID) -> SuggestionModel:
     return model
 
 
-@api.get("/search", name="Get search results", description=f"Search results are cached for {GLOBAL_CACHE_TTL_SECS} seconds. Suggestion tokens are cached for {SUGGESTION_TOKEN_TTL_SECS} seconds.")
+@api.get(
+    "/search",
+    name="Get search results",
+    description=f"Search results are cached for {GLOBAL_CACHE_TTL_SECS} seconds. Suggestion tokens are cached for {SUGGESTION_TOKEN_TTL_SECS} seconds.",
+)
 async def search(query: str, limit: int = 10) -> SearchModel:
     start = time.process_time()
     logger.info(f"Searching for {query}")

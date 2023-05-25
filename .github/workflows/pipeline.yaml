@@ -22,6 +22,8 @@ env:
   BUILDX_VERSION: 0.10.4
   # https://nodejs.org/en/download/releases
   NODE_VERSION: 18.16.0
+  # https://github.com/helm/helm/releases
+  HELM_VERSION: 3.11.2
 
 jobs:
   sast-creds:
@@ -42,6 +44,122 @@ jobs:
           base: ${{ github.event.repository.default_branch }}
           head: HEAD
           path: .
+
+  build-helm:
+    name: Build Helm chart
+    needs:
+      - sast-creds
+      - sast-semgrep
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.5.2
+        with:
+          # We need all Git history for "version.sh"
+          fetch-depth: 0
+          # Ensure "version.sh" submodule are up-to-date
+          submodules: recursive
+
+      - name: Version
+        id: version
+        run: |
+          echo "version=$(bash cicd/version/version.sh -g . -c)" >> $GITHUB_OUTPUT
+          echo "version_full=$(bash cicd/version/version.sh -g . -c -m)" >> $GITHUB_OUTPUT
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3.5
+        with:
+          version: v${{ env.HELM_VERSION }}
+
+      # Required for running "npx" CLI
+      - name: Setup Node
+        uses: actions/setup-node@v3.6.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Package Helm chart
+        run: |
+          cp README.md cicd/helm/
+
+          helm package \
+            --app-version ${{ steps.version.outputs.version_full }} \
+            --dependency-update \
+            --destination .cr-release-packages \
+            --version ${{ steps.version.outputs.version }} \
+            cicd/helm
+
+      - name: Cache Helm chart
+        uses: actions/upload-artifact@v3.1.2
+        with:
+          name: helm-chart
+          path: .cr-release-packages
+
+      - name: Render Helm chart locally
+        run: |
+          helm template \
+            --output-dir .helm-template \
+            --values test/helm/values.yaml \
+            .cr-release-packages/moaw-search-${{ steps.version.outputs.version }}.tgz
+
+      - name: Run SAST Snyk for Helm
+        # Snyk can be used to break the build when it detects security issues. In this case we want to upload the issues to GitHub Security
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          npx --yes snyk@${{ env.SNYK_VERSION }} iac test \
+            --sarif-file-output=snyk.sarif \
+            --severity-threshold=medium \
+            .helm-template
+
+      # Fix issue "Error: Code Scanning could not process the submitted SARIF file: rejecting SARIF, as there are more runs than allowed (XX > 20)"
+      # See: https://github.com/github/codeql-action/issues/220
+      - name: Merge SARIF files
+        run: |
+          npx --yes @microsoft/sarif-multitool@${{ env.SARIF_MULTITOOL_VERSION }} \
+            merge \
+              --merge-runs \
+              --output-file merged.sarif \
+              snyk.sarif
+
+      - name: Upload results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2.2.12
+        with:
+          sarif_file: merged.sarif
+
+  deploy-helm:
+    name: Deploy Helm chart
+    needs:
+      - build-publish
+      - build-helm
+    # Only deploy on non-scheduled main branch, as there is only one Helm repo and we cannot override an existing version
+    if: (github.event_name != 'schedule') && (github.ref == 'refs/heads/main')
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.5.2
+        with:
+          # Chart Releaser needs to have local access to "gh-pages" plus current branch
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+
+      - name: Download Helm chart
+        uses: actions/download-artifact@v3.0.2
+        with:
+          name: helm-chart
+          path: .cr-release-packages
+
+      - name: Archive Helm chart
+        uses: helm/chart-releaser-action@v1.5.0
+        with:
+          charts_dir: src/helm
+          skip_packaging: true
+        env:
+          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-publish:
     name: Build & deploy image "${{ matrix.src }}"

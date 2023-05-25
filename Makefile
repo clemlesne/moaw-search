@@ -1,3 +1,6 @@
+version_small ?= $(shell $(MAKE) --silent version)
+version_full ?= $(shell $(MAKE) --silent version-full)
+
 version:
 	@bash ./cicd/version/version.sh -g . -c
 
@@ -16,3 +19,9 @@ stop:
 
 logs:
 	docker-compose logs --follow
+
+deploy:
+	test -n "$(NAMESPACE)"  # $$NAMESPACE
+	test -n "$(TAG)"  # $$TAG
+
+	helm upgrade --install --namespace $(NAMESPACE) --set image.tag=$(TAG) --reuse-values --dependency-update default cicd/helm

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "moaw-search.fullname" . }}-search-api
+  labels:
+    {{- include "moaw-search.labels" . | nindent 4 }}
+    app.kubernetes.io/component: search-api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "moaw-search.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: search-api
