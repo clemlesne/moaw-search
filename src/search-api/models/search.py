@@ -4,20 +4,17 @@ from typing import List
 
 
 class SearchAnswerModel(BaseModel):
-    score: float
     metadata: MetadataModel
+    score: float
 
 
 class SearchStatsModel(BaseModel):
-    total: int
     time: float
-
-
-class SearchSuggestionModel(BaseModel):
-    message: str
+    total: int
 
 
 class SearchModel(BaseModel):
     answers: List[SearchAnswerModel]
+    query: str
     stats: SearchStatsModel
-    suggestion: SearchSuggestionModel
+    suggestion_token: str

@@ -1,5 +1,11 @@
 version: "2"
 services:
+  redis:
+    image: docker.io/redis:7.0-alpine
+    networks:
+      - moaw-search-service
+    ports:
+      - 6379:6379
   qdrant:
     image: docker.io/qdrant/qdrant:latest
     networks:
@@ -12,6 +18,7 @@ services:
     image: moaw-search-service/search-api:latest
     environment:
       QD_HOST: qdrant
+      REDIS_HOST: redis
     networks:
       - moaw-search-service
     ports:

@@ -9,17 +9,37 @@ import "./app.scss"
 
 function App() {
   const [answers, setAnswers] = useState([]);
+  const [answersLoading, setAnswersLoading] = useState(false);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState(null);
   const [suggestion, setSuggestion] = useState("");
+  const [suggestionLoading, setSuggestionLoading] = useState(false);
 
-  const fetchData = async (value) => {
-    setLoading(true);
+  const fetchSuggestion = async (token) => {
+    setSuggestionLoading(true);
+    setSuggestion("");
+    await axios.get(
+        `http://127.0.0.1:8081/suggestion/${token}`,
+        {
+          timeout: 30000,
+        },
+      )
+      .then((res) => {
+        setError("");
+        setSuggestion(res.data.message);
+      })
+      .catch((error) => {
+        setError({ code: error.code, message: error.message });
+        setSuggestion("");
+      })
+      .finally(() => setSuggestionLoading(false));
+  };
+
+  const fetchAnswers = async (value) => {
+    setAnswersLoading(true);
     await axios.get(
         `http://127.0.0.1:8081/search?query=${value}&limit=10`,
         {
-          retries: 3,
           timeout: 30000,
         },
       )
@@ -27,27 +47,26 @@ function App() {
         setError("");
         setAnswers(res.data.answers);
         setStats(res.data.stats);
-        setSuggestion(res.data.suggestion.message);
+        fetchSuggestion(res.data.suggestion_token);
       })
       .catch((error) => {
         setError({ code: error.code, message: error.message });
         setAnswers([]);
         setStats(null);
-        setSuggestion("");
       })
-      .finally(() => setLoading(false));
+      .finally(() => setAnswersLoading(false));
   };
 
   return (
     <>
       <SearchBar
-        fetchData={fetchData}
-        loading={loading}
+        fetchAnswers={fetchAnswers}
+        loading={answersLoading}
       />
-      <div className={`results ${loading && "results--loading"}`}>
+      <div className={`results ${answersLoading && "results--answersLoading"}`}>
         {error && <Error code={error.code} message={error.message} />}
         {stats && <Stats total={stats.total} time={stats.time} />}
-        {suggestion && <Suggestion message={suggestion} />}
+        {(suggestion || suggestionLoading) && <Suggestion message={suggestion} loading={suggestionLoading} />}
         {answers.map((answer) => (
           <Result key={answer.metadata.id} metadata={answer.metadata} score={answer.score} />
         ))}

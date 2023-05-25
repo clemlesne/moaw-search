@@ -1,11 +1,15 @@
 from datetime import datetime
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from models.metadata import MetadataModel
-from models.search import SearchAnswerModel, SearchStatsModel, SearchSuggestionModel, SearchModel
+from models.search import SearchAnswerModel, SearchStatsModel, SearchModel
+from models.suggestion import SuggestionModel
 from qdrant_client import QdrantClient
+from redis import Redis
+from tenacity import retry, stop_after_attempt
 from typing import Optional, List
+from uuid import uuid4, UUID
 import aiohttp
 import logging
 import openai
@@ -34,7 +38,14 @@ QD_DIMENSION = 1536
 QD_HOST = os.getenv("QD_HOST")
 QD_METRIC = qmodels.Distance.DOT
 qd_client = QdrantClient(host=QD_HOST, port=6333)
-
+# Init Redis
+REDIS_HOST = os.getenv("REDIS_HOST")
+redis_client = Redis(
+    db=0,
+    decode_responses=True,
+    host=REDIS_HOST,
+    port=6379,
+)
 
 # Ensure OpenAI API key is set
 if not openai.api_key:
@@ -96,7 +107,15 @@ async def search_answer(query: str, limit: int):
     return results, total
 
 
-async def search_suggestion(query: str, results: List[SearchAnswerModel]) -> str:
+@api.get("/suggestion/{token}")
+async def suggestion(token: UUID) -> SuggestionModel:
+    model_raw = redis_client.get(token.hex)
+
+    if not model_raw:
+        raise HTTPException(status_code=404, detail="Suggestion not found or expired")
+
+    model = SearchModel.parse_raw(model_raw)
+
     prompt = textwrap.dedent(f"""
         You are a training consultant. You are working for Microsoft. You have 20 years of experience in the technology industry. You are looking for a workshop. Today, we are the {datetime.now()}.
 
@@ -120,12 +139,12 @@ async def search_suggestion(query: str, results: List[SearchAnswerModel]) -> str
         Awnser with a help to find the workshop.
 
         QUERY START
-        {query}
+        {model.query}
         QUERY END
 
     """)
 
-    for i, result in enumerate(results):
+    for i, result in enumerate(model.answers):
         prompt += textwrap.dedent(f"""
             WORKSHOP START #{i}
             Audience:
@@ -148,7 +167,9 @@ async def search_suggestion(query: str, results: List[SearchAnswerModel]) -> str
 
         """)
 
-    return await completion_from_text(prompt)
+    comletion = await completion_from_text(prompt)
+
+    return SuggestionModel(message=comletion)
 
 
 @api.get("/search")
@@ -169,18 +190,19 @@ async def search(query: str, limit: int = 10) -> SearchModel:
         except TypeError:
             logger.exception(f"Error parsing model: {res.id}")
 
-    suggestion = await search_suggestion(query, answers)
+    suggestion_token = uuid4().hex
 
-    return SearchModel(
-        stats=SearchStatsModel(
-            time=(time.process_time() - start),
-            total=total,
-        ),
-        suggestion=SearchSuggestionModel(
-            message=suggestion,
-        ),
+    model = SearchModel(
         answers=answers,
+        query=query,
+        stats=SearchStatsModel(time=(time.process_time() - start), total=total),
+        suggestion_token=suggestion_token,
     )
+
+    # Token is valid for 10 seconds
+    redis_client.set(suggestion_token, model.json(), ex=10)
+
+    return model
 
 
 @api.get("/index")
@@ -275,6 +297,7 @@ async def index() -> None:
         logger.info(f"Indexed {len(workshops)} workshops")
 
 
+@retry(stop=stop_after_attempt(3))
 async def vector_from_text(prompt: str) -> List[float]:
     logger.debug(f"Getting vector for text: {prompt}")
     response = openai.Embedding.create(
@@ -284,6 +307,7 @@ async def vector_from_text(prompt: str) -> List[float]:
     return response.data[0].embedding
 
 
+@retry(stop=stop_after_attempt(3))
 async def completion_from_text(prompt: str) -> str:
     logger.debug(f"Getting completion for text: {prompt}")
     response = openai.Completion.create(
