@@ -7,7 +7,7 @@ function Suggestion({ message, loading }) {
   return (
     <div className="suggestion">
       {loading && <Loader />}
-      <ReactMarkdown linkTarget="_blank" children={message} remarkPlugins={[remarkGfm]} />
+      {!loading && <ReactMarkdown linkTarget="_blank" children={message} remarkPlugins={[remarkGfm]} />}
       <span className="suggestion__sub">AI generated results can be wrong.</span>
     </div>
   )
