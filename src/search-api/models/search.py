@@ -5,6 +5,7 @@ from uuid import UUID
 
 
 class SearchAnswerModel(BaseModel):
+    id: UUID
     metadata: MetadataModel
     score: float
 

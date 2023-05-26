@@ -231,6 +231,7 @@ async def search(query: str, user: UUID, limit: int = 10) -> SearchModel:
             try:
                 answers.append(
                     SearchAnswerModel(
+                        id=res.id,
                         metadata=MetadataModel(**res.payload),
                         score=res.score,
                     )
