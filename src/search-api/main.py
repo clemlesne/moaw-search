@@ -89,17 +89,18 @@ async def health_liveness_get() -> None:
     return None
 
 
-async def search_answer(query: str, limit: int) -> List[any]:
+async def search_answer(query: str, limit: int, user: UUID) -> List[any]:
     vector = await vector_from_text(
         textwrap.dedent(
             f"""
-        Today, we are the {datetime.now()}.
+            Today, we are the {datetime.now()}.
 
-        QUERY START
-        {query}
-        QUERY END
-    """
-        )
+            QUERY START
+            {query}
+            QUERY END
+        """
+        ),
+        user,
     )
 
     search_params = qmodels.SearchParams(hnsw_ef=128, exact=False)
@@ -121,7 +122,7 @@ async def search_answer(query: str, limit: int) -> List[any]:
     name="Get suggestion from a search",
     description=f"Suggestions are cached for {GLOBAL_CACHE_TTL_SECS} seconds.",
 )
-async def suggestion(token: UUID) -> SuggestionModel:
+async def suggestion(token: UUID, user: UUID) -> SuggestionModel:
     logger.info(f"Suggesting for {token}")
 
     token_cache_key = f"token:{token.hex}"
@@ -195,7 +196,7 @@ async def suggestion(token: UUID) -> SuggestionModel:
         """
         )
 
-    comletion = await completion_from_text(prompt)
+    comletion = await completion_from_text(prompt, user)
     model = SuggestionModel(message=comletion)
     redis_client.set(suggestion_cache_key, model.json(), ex=GLOBAL_CACHE_TTL_SECS)
     return model
@@ -206,7 +207,7 @@ async def suggestion(token: UUID) -> SuggestionModel:
     name="Get search results",
     description=f"Search results are cached for {GLOBAL_CACHE_TTL_SECS} seconds. Suggestion tokens are cached for {SUGGESTION_TOKEN_TTL_SECS} seconds.",
 )
-async def search(query: str, limit: int = 10) -> SearchModel:
+async def search(query: str, user: UUID, limit: int = 10) -> SearchModel:
     start = time.process_time()
     logger.info(f"Searching for {query}")
 
@@ -224,7 +225,7 @@ async def search(query: str, limit: int = 10) -> SearchModel:
     else:
         logger.debug("No cached results found")
         total = qd_client.count(collection_name=QD_COLLECTION, exact=False).count
-        results = await search_answer(query, limit)
+        results = await search_answer(query, limit, user)
         answers = []
         for res in results:
             try:
@@ -347,21 +348,28 @@ async def index() -> None:
 
 
 @retry(stop=stop_after_attempt(3))
-async def vector_from_text(prompt: str) -> List[float]:
+async def vector_from_text(prompt: str, user: UUID) -> List[float]:
     logger.debug(f"Getting vector for text: {prompt}")
     response = openai.Embedding.create(
         input=prompt,
         model=OAI_EMBEDDING_MODEL,
+        user=str(
+            user
+        ),  # Unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
     )
     return response.data[0].embedding
 
 
 @retry(stop=stop_after_attempt(3))
-async def completion_from_text(prompt: str) -> str:
+async def completion_from_text(prompt: str, user: UUID) -> str:
     logger.debug(f"Getting completion for text: {prompt}")
     # Use chat completion to get a more natural response and lower the usage cost
     response = openai.ChatCompletion.create(
-        model=OAI_COMPLETION_MODEL,
         messages=[{"role": "user", "content": prompt}],
+        model=OAI_COMPLETION_MODEL,
+        presence_penalty=1,  # Increase the model's likelihood to talk about new topics
+        user=str(
+            user
+        ),  # Unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
     )
     return response.choices[0].message.content
