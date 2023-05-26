@@ -1,8 +1,8 @@
 # MOAW Search
 
-> This project is a proof of concept. It is not intended to be used in production. Nevertheless, it follows best practices and can be used as a template for a production-ready project.
+**Demo available at [moaw-search.shopping-cart-devops-demo.lesne.pro](https://moaw-search.shopping-cart-devops-demo.lesne.pro/).**
 
-MOAW Search is a search engine for the [MOAW](https://microsoft.github.io/moaw/) workshops. It use [OpenAI Embedding](https://platform.openai.com/docs/guides/embeddings) to find the most similar sentences to the query. Search queries can be asked in natural language.
+MOAW Search is a search engine for the [MOAW](https://microsoft.github.io/moaw/) workshops. It use [OpenAI Embedding](https://platform.openai.com/docs/guides/embeddings) to find the most similar sentences to the query. Search queries can be asked in natural language. It uses [Qdrant to index the data](https://github.com/qdrant/qdrant) and [Redis to cache the results](https://github.com/redis/redis).
 
 OpenAI models used are:
 
@@ -10,32 +10,6 @@ OpenAI models used are:
 - [`gpt-3.5-turbo`](https://platform.openai.com/docs/models/gpt-3-5) for the suggestions (`text-davinci-003` costs 10x more and this is sufficient for our use case)
 
 ![Application screenshot](docs/main.png)
-
-## How it works
-
-```mermaid
-graph
-  user(["User"])
-
-  api["Search service\n(REST API)"]
-  moaw["MOAW\n(website)"]
-  qdrant[("Qdrant\n(disk)")]
-  redis[("Redis\n(memory)")]
-  ui["Search UI\n(PWA)"]
-
-  subgraph "OpenAI"
-    oai_ada["ADA embedding"]
-    oai_gpt["GPT completions"]
-  end
-
-  api -- Cache entities --> redis
-  api -- Crawl data for indexing --> moaw
-  api -- Generate completions --> oai_gpt
-  api -- Generate embeddings --> oai_ada
-  api -- Search for similarities, index vectors --> qdrant
-  ui -- Use APIs --> api
-  user -- Navigate --> ui
-```
 
 ## How to use
 
@@ -64,5 +38,87 @@ helm upgrade --install default clemlesne-moaw-search/moaw-search
 Go to [http://127.0.0.1:8081/redoc](http://127.0.0.1:8081/redoc).
 
 ![Documentation endpoint](docs/doc.png)
+
+## How it works
+
+### High level
+
+```mermaid
+sequenceDiagram
+    autonumber
+
+    actor User
+    participant PWA
+    participant API
+
+    User ->> PWA: Fill text
+    activate PWA
+    PWA ->> API: Get answers
+    API ->> PWA: Answer with the results
+    User ->> PWA: See results
+    deactivate PWA
+    PWA ->> API: Ask for suggestion
+    API ->> API: Takes forever
+    API ->> PWA: Answer with the suggestion
+    User ->> PWA: See suggestion
+```
+
+### Architecture
+
+```mermaid
+graph
+  user(["User"])
+
+  api["Search service\n(REST API)"]
+  moaw["MOAW\n(website)"]
+  qdrant[("Qdrant\n(disk)")]
+  redis[("Redis\n(memory)")]
+  ui["Search UI\n(PWA)"]
+
+  subgraph "OpenAI"
+    oai_ada["ADA embedding"]
+    oai_gpt["GPT completions"]
+  end
+
+  api -- Cache entities --> redis
+  api -- Crawl data for indexing --> moaw
+  api -- Generate completions --> oai_gpt
+  api -- Generate embeddings --> oai_ada
+  api -- Search for similarities, index vectors --> qdrant
+  ui -- Use APIs --> api
+  user -- Navigate --> ui
+```
+
+## Advanced topics
+
+### Sequence diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+
+    actor User
+    participant PWA
+    participant API
+    participant Database
+    participant Cache
+    participant OpenAI
+
+    User ->> PWA: Fill text
+    PWA ->> API: Get answers
+    API ->> Cache: Test if there is a cached response
+
+    alt No cache
+        API ->> OpenAI: Generate embedding
+        API ->> Database: Search for vector similarities
+        API ->> Cache: Store results
+    end
+
+    API ->> API: Generate suggestion token
+    API ->> Cache: Store suggestion model
+    API ->> PWA: Answer with the results
+
+    User ->> PWA: See results
+```
 
 ## [Authors](./AUTHORS.md)

@@ -14,16 +14,22 @@
     font-size: 1.15rem;
   }
 
-  > *:not(:last-child) {
-    margin-right: 1rem;
+  @media (max-width: 768px) {
+    h1 > :not(:first-child),
+    button {
+      display: none;
+    }
   }
 
   h1 {
+    flex-shrink: 0;
     font-weight: 600;
+    font-size: 1.3rem;
+    margin-right: 1rem;
   }
 
   input {
-    background: none;
+    background: var(--background);
     border-radius: var(--radius);
     border: 1px solid var(--border);
     padding: .5rem;
@@ -32,5 +38,9 @@
     &:focus {
       outline: 2px solid var(--border-active);
     }
+  }
+
+  button {
+    margin-left: 1rem;
   }
 }

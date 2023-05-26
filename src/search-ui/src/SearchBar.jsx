@@ -5,28 +5,33 @@ import Button from "./Button";
 
 const SearchBar = ({ fetchAnswers, loading }) => {
   const [value, setValue] = useState("");
+  const [lastValue, setLastValue] = useState("");
 
-  const handleSearchInputChange = (e) => {
-    setValue(e.target.value);
+  const fetch = (value) => {
+    if(value != lastValue) {
+      fetchAnswers(value)
+    }
+    setLastValue(value)
   };
 
   return (
     <div className="search">
-      <h1>🐱 MOAW Search</h1>
+      <h1><span>🐱</span> <span>MOAW Search</span></h1>
       <input
         name="search"
-        onChange={handleSearchInputChange}
+        size="1"
+        onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) =>
-          value.length > 0 && e.key === "Enter" && fetchAnswers(value)
+          (value.length > 0 && e.key === "Enter") && fetch(value)
         }
-        onBlur={() => (value.length > 0 && !loading) && fetchAnswers(value)}
+        onBlur={() => (value.length > 0 && !loading) && fetch(value)}
         placeholder="Search accross workshops..."
         type="search"
         value={value}
       />
       <Button
         disabled={value.length == 0}
-        onClick={() => fetchAnswers(value)}
+        onClick={() => fetch(value)}
         text="Search"
         loading={loading}
         emopji="🔎"
