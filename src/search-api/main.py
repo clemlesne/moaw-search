@@ -123,9 +123,9 @@ async def search_answer(query: str, limit: int, user: UUID) -> List[any]:
     description=f"Suggestions are cached for {GLOBAL_CACHE_TTL_SECS} seconds.",
 )
 async def suggestion(token: UUID, user: UUID) -> SuggestionModel:
-    logger.info(f"Suggesting for {token}")
+    logger.info(f"Suggesting for {str(token)}")
 
-    token_cache_key = f"token:{token.hex}"
+    token_cache_key = f"token:{str(token)}"
 
     search_model_raw = redis_client.get(token_cache_key)
     if not search_model_raw:
@@ -211,7 +211,7 @@ async def search(query: str, user: UUID, limit: int = 10) -> SearchModel:
     start = time.process_time()
     logger.info(f"Searching for {query}")
 
-    suggestion_token = uuid4().hex
+    suggestion_token = str(uuid4())
     search_cache_key = f"search:{query}-{limit}"
     token_cache_key = f"token:{suggestion_token}"
 
