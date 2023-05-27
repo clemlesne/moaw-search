@@ -20,6 +20,7 @@ const SearchBar = ({ fetchAnswers, loading }) => {
       <input
         name="search"
         size="1"
+        maxLength="200"
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) =>
           (value.length > 0 && e.key === "Enter") && fetch(value)

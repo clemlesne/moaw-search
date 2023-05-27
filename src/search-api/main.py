@@ -1,6 +1,6 @@
 from datetime import datetime
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from models.metadata import MetadataModel
 from models.search import SearchAnswerModel, SearchStatsModel, SearchModel
@@ -8,7 +8,7 @@ from models.suggestion import SuggestionModel
 from qdrant_client import QdrantClient
 from redis import Redis
 from tenacity import retry, stop_after_attempt
-from typing import List
+from typing import List, Annotated
 from uuid import uuid4, UUID
 import aiohttp
 import logging
@@ -207,7 +207,9 @@ async def suggestion(token: UUID, user: UUID) -> SuggestionModel:
     name="Get search results",
     description=f"Search results are cached for {GLOBAL_CACHE_TTL_SECS} seconds. Suggestion tokens are cached for {SUGGESTION_TOKEN_TTL_SECS} seconds.",
 )
-async def search(query: str, user: UUID, limit: int = 10) -> SearchModel:
+async def search(
+    query: Annotated[str, Query(max_length=200)], user: UUID, limit: int = 10
+) -> SearchModel:
     start = time.process_time()
     logger.info(f"Searching for {query}")
 
