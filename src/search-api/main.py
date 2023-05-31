@@ -254,8 +254,8 @@ async def search(
     return model
 
 
-@api.get("/index", name="Index workshops from microsoft.github.io")
-async def index() -> None:
+@api.get("/index", status_code=204, name="Index workshops from microsoft.github.io")
+async def index(user: UUID) -> None:
     # load JSON with aiohttp
     async with aiohttp.ClientSession() as session:
         workshops = await session.get("https://microsoft.github.io/moaw/workshops.json")
@@ -319,7 +319,7 @@ async def index() -> None:
             """
             )
             logger.debug(f"Text: {text}")
-            vector = await vector_from_text(text)
+            vector = await vector_from_text(text, user)
 
             # Create Qdrant payload
             vectors.append(vector)
