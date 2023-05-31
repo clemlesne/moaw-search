@@ -41,9 +41,14 @@
     color: inherit;
   }
 
+  ol {
+    list-style-position: inside;
+    list-style-type: decimal;
+  }
+
   ul {
     list-style-position: inside;
-    list-style-type: initial;
+    list-style-type: disc;
   }
 }
 
