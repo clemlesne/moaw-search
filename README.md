@@ -81,9 +81,9 @@ graph
   end
 
   api -- Cache entities --> redis
-  api -- Crawl data for indexing --> moaw
   api -- Generate completions --> oai_gpt
   api -- Generate embeddings --> oai_ada
+  api -- Index data every hour --> moaw
   api -- Search for similarities, index vectors --> qdrant
   ui -- Use APIs --> api
   user -- Navigate --> ui
