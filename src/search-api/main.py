@@ -1,6 +1,9 @@
+from apscheduler.jobstores.redis import RedisJobStore
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, status
 from fastapi.middleware.cors import CORSMiddleware
 from models.metadata import MetadataModel
 from models.search import SearchAnswerModel, SearchStatsModel, SearchModel
@@ -8,9 +11,11 @@ from models.suggestion import SuggestionModel
 from qdrant_client import QdrantClient
 from redis import Redis
 from tenacity import retry, stop_after_attempt
-from typing import List, Annotated
+from typing import List, Annotated, Tuple
 from uuid import uuid4, UUID
+from yarl import URL
 import aiohttp
+import html
 import logging
 import openai
 import os
@@ -57,7 +62,9 @@ qd_client = QdrantClient(host=QD_HOST, port=6333)
 GLOBAL_CACHE_TTL_SECS = 60 * 60  # 1 hour
 SUGGESTION_TOKEN_TTL_SECS = 60  # 1 minute
 REDIS_HOST = os.getenv("REDIS_HOST")
-redis_client = Redis(db=0, host=REDIS_HOST, port=6379)
+REDIS_PORT = 6379
+redis_client_api = Redis(db=0, host=REDIS_HOST, port=REDIS_PORT)
+redis_client_scheduler = RedisJobStore(db=1, host=REDIS_HOST, port=REDIS_PORT)
 
 # Ensure OpenAI API key is set
 if not openai.api_key:
@@ -84,7 +91,27 @@ api.add_middleware(
 )
 
 
-@api.get("/health/liveness", status_code=204, name="Healthckeck liveness")
+@api.on_event("startup")
+async def startup_event() -> None:
+    """
+    Starts the scheduler, which runs every hour to index the data in the database.
+    """
+    scheduler = AsyncIOScheduler(
+        jobstores={"redis": redis_client_scheduler},
+        timezone="UTC",
+    )
+    scheduler.add_job(
+        args={"user": uuid4(), "force": False},
+        func=index_engine,
+        id="index",
+        jobstore="redis",
+        replace_existing=True,
+        trigger=CronTrigger(hour="*"),  # Every hour
+    )
+    scheduler.start()
+
+
+@api.get("/health/liveness", status_code=status.HTTP_204_NO_CONTENT, name="Healthckeck liveness")
 async def health_liveness_get() -> None:
     return None
 
@@ -127,78 +154,22 @@ async def suggestion(token: UUID, user: UUID) -> SuggestionModel:
 
     token_cache_key = f"token:{str(token)}"
 
-    search_model_raw = redis_client.get(token_cache_key)
+    search_model_raw = redis_client_api.get(token_cache_key)
     if not search_model_raw:
-        raise HTTPException(status_code=404, detail="Suggestion not found or expired")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Suggestion not found or expired")
     search_model = SearchModel.parse_raw(search_model_raw)
 
     suggestion_cache_key = f"suggestion:{search_model.query}"
 
-    model_raw = redis_client.get(suggestion_cache_key)
+    model_raw = redis_client_api.get(suggestion_cache_key)
     if model_raw:
         logger.debug("Found suggestion in cache")
         return SuggestionModel.parse_raw(model_raw)
 
-    prompt = textwrap.dedent(
-        f"""
-        You are a training consultant. You are working for Microsoft. You have 20 years of experience in the technology industry. You are looking for a workshop. Today, we are the {datetime.now()}.
-
-        You MUST:
-        - Be kind and respectful
-        - Do not invent workshops, only use the ones you have seen
-        - Limit your answer few sentences
-        - Sources are only workshops you have seen
-        - Use imperative form (example: "Do this" instead of "You should do this")
-        - Write links with Markdown syntax (example: [which can be found here](https://google.com))
-
-        You SHOULD:
-        - Be concise and precise
-        - Cite your sources as bullet points, at the end of your answer
-        - Feel free to propose a new workshop idea if you do not find any relevant one
-        - If you don't know, don't answer
-        - QUERY defines the workshop you are looking for
-        - Use your knowledge to add value to your proposal
-        - WORKSHOP are sorted by relevance, from the most relevant to the least relevant
-        - WORKSHOP are workshops examples you will base your answer
-        - You can precise the way you want to execute the workshop
-
-        Awnser with a help to find the workshop.
-
-        QUERY START
-        {search_model.query}
-        QUERY END
-
-    """
-    )
-
-    for i, result in enumerate(search_model.answers):
-        prompt += textwrap.dedent(
-            f"""
-            WORKSHOP START #{i}
-            Audience:
-            {result.metadata.audience}
-            Authors:
-            {result.metadata.authors}
-            Description:
-            {result.metadata.description}
-            Language:
-            {result.metadata.language}
-            Last updated:
-            {result.metadata.last_updated}
-            Tags:
-            {result.metadata.tags}
-            Title:
-            {result.metadata.title}
-            URL:
-            {result.metadata.url}
-            WORKSHOP END
-
-        """
-        )
-
+    prompt = await prompt_from_search_model(search_model)
     comletion = await completion_from_text(prompt, user)
     model = SuggestionModel(message=comletion)
-    redis_client.set(suggestion_cache_key, model.json(), ex=GLOBAL_CACHE_TTL_SECS)
+    redis_client_api.set(suggestion_cache_key, model.json(), ex=GLOBAL_CACHE_TTL_SECS)
     return model
 
 
@@ -217,7 +188,7 @@ async def search(
     search_cache_key = f"search:{query}-{limit}"
     token_cache_key = f"token:{suggestion_token}"
 
-    model_raw = redis_client.get(search_cache_key)
+    model_raw = redis_client_api.get(search_cache_key)
     if model_raw:
         model = SearchModel.parse_raw(model_raw)
         answers = model.answers
@@ -248,94 +219,69 @@ async def search(
         suggestion_token=suggestion_token,
     )
 
-    redis_client.set(search_cache_key, model.json(), ex=GLOBAL_CACHE_TTL_SECS)
-    redis_client.set(token_cache_key, model.json(), ex=SUGGESTION_TOKEN_TTL_SECS)
+    redis_client_api.set(search_cache_key, model.json(), ex=GLOBAL_CACHE_TTL_SECS)
+    redis_client_api.set(token_cache_key, model.json(), ex=SUGGESTION_TOKEN_TTL_SECS)
 
     return model
 
 
-@api.get("/index", status_code=204, name="Index workshops from microsoft.github.io")
-async def index(user: UUID) -> None:
-    # load JSON with aiohttp
+@api.get(
+    "/index",
+    status_code=status.HTTP_202_ACCEPTED,
+    name="Index workshops from microsoft.github.io. Task is run in background.",
+)
+async def index(user: UUID, background_tasks: BackgroundTasks, force: bool = False) -> None:
+    background_tasks.add_task(index_engine, user, force)
+
+
+async def index_engine(user: UUID, force: bool) -> None:
     async with aiohttp.ClientSession() as session:
         workshops = await session.get("https://microsoft.github.io/moaw/workshops.json")
         workshops = await workshops.json()
+
         ids = []
         payloads = []
         vectors = []
 
         for workshop in workshops:
-            logger.info(f"Parsing workshop {workshop['title']}...")
-            # Get HTML from web page
-            async with aiohttp.ClientSession() as session:
-                url = workshop["url"]
-                url_content = url
-                # Handle relative URLs for workshops hosted in MOAW, in that case, we use the default workshop Markdown file
-                if not url.startswith("http"):
-                    url = f"https://microsoft.github.io/moaw/workshops/{url}"
-                    url_content = f"{url}/workshop.md"
-                # Handle redirections from MOAW
-                while True:
-                    res = await session.get(url_content)
-                    if res.status == 301:
-                        url_content = res.headers["Location"]
-                    else:
-                        break
-                content_html = await res.text()
-
-            content_text = content_html
-            # Remove HTML head
-            content_text = re.sub(r"<head>[\S\n\t\v ]*<\/head>", " ", content_text)
-            # Remove HTML scripts
-            content_text = re.sub(r"<script>[\S\n\t\v ]*<\/script>", " ", content_text)
-            # Remove HTML styles
-            content_text = re.sub(r"<style>[\S\n\t\v ]*<\/style>", " ", content_text)
-            # Remove HTML tags
-            content_text = re.sub(r"<[^>]*>", " ", content_text)
-            # Remove Markdown tables
-            content_text = re.sub(r"[-|]{2,}", " ", content_text)
-            # Remove double line returns
-            content_text = re.sub(r"\n", " ", content_text)
-            # Remove double spaces
-            content_text = re.sub(r" +", " ", content_text)
-
-            # Create prompt for OpenAI
-            text = textwrap.dedent(
-                f"""
-                Title:
-                {workshop['title']}
-                Description:
-                {workshop['description']}
-                Content:
-                {content_text[:7500]}
-                Tags:
-                {workshop['tags']}
-                Authors:
-                {workshop['authors']}
-                Audience:
-                {workshop['audience']}
-                Last updated:
-                {workshop['lastUpdated']}
-            """
+            id = workshop.get("id")
+            model = MetadataModel(
+                audience=workshop.get("audience"),
+                authors=workshop.get("authors"),
+                description=workshop.get("description"),
+                language=workshop.get("language"),
+                last_updated=datetime.fromisoformat(workshop.get("lastUpdated")),
+                tags=workshop.get("tags"),
+                title=workshop.get("title"),
+                url=workshop.get("url"),
             )
+
+            if not force:
+                try:
+                    res = qd_client.retrieve(collection_name=QD_COLLECTION, ids=[id])
+                    if len(res) > 0:
+                        stored = MetadataModel(**res[0].payload)
+                        logger.info(stored.last_updated)
+                        logger.info(model.last_updated)
+                        if stored.last_updated == model.last_updated:
+                            logger.info(f'Workshop "{model.title}" already indexed')
+                            continue
+                except Exception as e:
+                    logger.exception(e)
+
+            logger.info(f"Parsing workshop {model.title}...")
+            text = await embedding_text_from_model(model, session)
             logger.debug(f"Text: {text}")
             vector = await vector_from_text(text, user)
 
             # Create Qdrant payload
             vectors.append(vector)
-            ids.append(workshop["id"])
-            payloads.append(
-                {
-                    "audience": workshop["audience"],
-                    "authors": workshop["authors"],
-                    "description": workshop["description"],
-                    "language": workshop["language"],
-                    "last_updated": workshop["lastUpdated"],
-                    "tags": workshop["tags"],
-                    "title": workshop["title"],
-                    "url": url,
-                }
-            )
+            ids.append(id)
+            payloads.append(model.dict())
+
+        if len(ids) == 0:
+            logger.info("No new workshops to index")
+            return
 
         # Insert into Qdrant
         qd_client.upsert(
@@ -376,3 +322,153 @@ async def completion_from_text(prompt: str, user: UUID) -> str:
         ),  # Unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
     )
     return response.choices[0].message.content
+
+
+async def prompt_from_search_model(model: SearchModel) -> str:
+    prompt = textwrap.dedent(
+        f"""
+        You are a training consultant. You are working for Microsoft. You have 20 years of experience in the technology industry. You are looking for a workshop. Today, we are the {datetime.now()}.
+
+        You MUST:
+        - Be kind and respectful
+        - Do not invent workshops, only use the ones you have seen
+        - Limit your answer few sentences
+        - Sources are only workshops you have seen
+        - Use imperative form (example: "Do this" instead of "You should do this")
+        - Write links with Markdown syntax (example: [which can be found here](https://google.com))
+        - Write lists with Markdown syntax, using dashes (example: - First item) or numbers (example: 1. First item)
+        - Write your answer in English
+
+        You SHOULD:
+        - Be concise and precise
+        - Cite your sources as bullet points, at the end of your answer
+        - Feel free to propose a new workshop idea if you do not find any relevant one
+        - If you don't know, don't answer
+        - QUERY defines the workshop you are looking for
+        - Use your knowledge to add value to your proposal
+        - WORKSHOP are sorted by relevance, from the most relevant to the least relevant
+        - WORKSHOP are workshops examples you will base your answer
+        - You can precise the way you want to execute the workshop
+
+        Awnser with a help to find the workshop.
+
+        QUERY START
+        {model.query}
+        QUERY END
+
+    """
+    )
+
+    for i, result in enumerate(model.answers):
+        prompt += textwrap.dedent(
+            f"""
+            WORKSHOP START #{i}
+            Audience:
+            {result.metadata.audience}
+            Authors:
+            {result.metadata.authors}
+            Description:
+            {result.metadata.description}
+            Language:
+            {result.metadata.language}
+            Last updated:
+            {result.metadata.last_updated}
+            Tags:
+            {result.metadata.tags}
+            Title:
+            {result.metadata.title}
+            URL:
+            {result.metadata.url}
+            WORKSHOP END
+
+        """
+        )
+
+    return prompt
+
+
+
+async def embedding_text_from_model(model: MetadataModel, session: aiohttp.ClientSession) -> str:
+    description = await sanitize_for_embedding(model.description)
+    (content_raw, url) = await workshop_scrapping(model.url, session)
+    content_clean = (await sanitize_for_embedding(content_raw))[:7500]
+
+    # Update model with the real URL
+    model.url = url.human_repr()
+
+    return textwrap.dedent(
+        f"""
+        Title:
+        {model.title}
+
+        Description:
+        {description}
+
+        Content:
+        {content_clean}
+
+        Tags:
+        {", ".join(model.tags)}
+
+        Authors:
+        {", ".join(model.authors)}
+
+        Audience:
+        {", ".join(model.audience)}
+
+        Last updated:
+        {model.last_updated}
+    """
+    )
+
+
+async def sanitize_for_embedding(raw: str) -> str:
+    """
+    Takes a raw string of HTML and removes all HTML tags, Markdown tables, and line returns.
+    """
+    # Remove HTML doctype
+    raw = re.sub(r"<!DOCTYPE[^>]*>", " ", raw)
+    # Remove HTML head
+    raw = re.sub(r"<head\b[^>]*>[\s\S]*<\/head>", " ", raw)
+    # Remove HTML scripts
+    raw = re.sub(r"<script\b[^>]*>[\s\S]*?<\/script>", " ", raw)
+    # Remove HTML styles
+    raw = re.sub(r"<style\b[^>]*>[\s\S]*?<\/style>", " ", raw)
+    # Remove HTML tags
+    raw = re.sub(r"<[^>]*>", " ", raw)
+    # Remove Markdown tables
+    raw = re.sub(r"[-|]{2,}", " ", raw)
+    # Remove Markdown code blocks
+    raw = re.sub(r"```[\s\S]*```", " ", raw)
+    # Remove Markdown bold, italic, strikethrough, code, heading, table delimiters, links, images, comments, and horizontal rules
+    raw = re.sub(r"[*_`~#|!\[\]<>-]+", " ", raw)
+    # Remove line returns, tabs and spaces
+    raw = re.sub(r"[\n\t\v ]+", " ", raw)
+    # Remove HTML entities
+    raw = html.unescape(raw)
+    # Remove leading and trailing spaces
+    raw = raw.strip()
+
+    return raw
+
+
+async def workshop_scrapping(url: str, session: aiohttp.ClientSession) -> Tuple[str, URL]:
+    """
+    Scrapes the workshop from the given URL and returns the content as a string.
+    """
+    logger.debug(f"Scraping workshop from {url}")
+
+    return_url = None
+
+    # Handle relative URLs for workshops hosted in MOAW, in that case, we use the default workshop Markdown file
+    scrapping_url = url
+    if not url.startswith("http"):
+        scrapping_url = f"https://microsoft.github.io/moaw/workshops/{url}workshop.md"
+        return_url = URL(f"https://microsoft.github.io/moaw/workshop/{url}")
+
+    res = await session.get(scrapping_url)
+
+    if not return_url:
+        return_url = res.url
+
+    return (await res.text(), return_url)
