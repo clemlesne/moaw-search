@@ -7,12 +7,13 @@ import Result from "./Result";
 import SearchBar from "./SearchBar";
 import Stats from "./Stats";
 import Suggestion from "./Suggestion";
+import useLocalStorageState from 'use-local-storage-state';
 
 function App() {
   const [answers, setAnswers] = useState([]);
   const [answersLoading, setAnswersLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [F, setF] = useState(null);
+  const [F, setF] = useLocalStorageState("F", { defaultValue: null });
   const [stats, setStats] = useState(null);
   const [suggestion, setSuggestion] = useState(null);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
@@ -40,6 +41,7 @@ function App() {
       })
       .catch((error) => {
         setError({ code: error.code, message: error.message });
+        setSuggestion(null);
       })
       .finally(() => setSuggestionLoading(false));
   }, [suggestionToken, F]);
