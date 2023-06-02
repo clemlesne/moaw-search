@@ -3,7 +3,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, status
+from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, status, Response
 from fastapi.middleware.cors import CORSMiddleware
 from models.metadata import MetadataModel
 from models.search import SearchAnswerModel, SearchStatsModel, SearchModel
@@ -11,7 +11,7 @@ from models.suggestion import SuggestionModel
 from qdrant_client import QdrantClient
 from redis import Redis
 from tenacity import retry, stop_after_attempt
-from typing import List, Annotated, Optional, Tuple
+from typing import List, Annotated, Optional, Tuple, Union
 from uuid import uuid4, UUID
 from yarl import URL
 import aiohttp
@@ -35,6 +35,7 @@ logger.setLevel(logging.DEBUG)
 # Init OpenAI
 OAI_EMBEDDING_MODEL = "text-embedding-ada-002"
 OAI_COMPLETION_MODEL = "gpt-3.5-turbo"
+OAI_MODERATION_MODEL = "text-moderation-stable"
 openai.api_key = os.getenv("OPENAI_KEY")
 # Init FastAPI
 ROOT_PATH = os.getenv("ROOT_PATH")
@@ -111,7 +112,11 @@ async def startup_event() -> None:
     scheduler.start()
 
 
-@api.get("/health/liveness", status_code=status.HTTP_204_NO_CONTENT, name="Healthckeck liveness")
+@api.get(
+    "/health/liveness",
+    status_code=status.HTTP_204_NO_CONTENT,
+    name="Healthckeck liveness",
+)
 async def health_liveness_get() -> None:
     return None
 
@@ -156,7 +161,10 @@ async def suggestion(token: UUID, user: UUID) -> SuggestionModel:
 
     search_model_raw = redis_client_api.get(token_cache_key)
     if not search_model_raw:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Suggestion not found or expired")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Suggestion not found or expired",
+        )
     search_model = SearchModel.parse_raw(search_model_raw)
 
     suggestion_cache_key = f"suggestion:{search_model.query}"
@@ -176,13 +184,13 @@ async def suggestion(token: UUID, user: UUID) -> SuggestionModel:
 @api.get(
     "/search",
     name="Get search results",
-    description=f"Search results are cached for {GLOBAL_CACHE_TTL_SECS} seconds. Suggestion tokens are cached for {SUGGESTION_TOKEN_TTL_SECS} seconds.",
+    description=f"Search results are cached for {GLOBAL_CACHE_TTL_SECS} seconds. Suggestion tokens are cached for {SUGGESTION_TOKEN_TTL_SECS} seconds. If the input is moderated, the API will return a HTTP 204 with no content.",
 )
 async def search(
     query: Annotated[str, Query(max_length=200)], user: UUID, limit: int = 10
-) -> SearchModel:
+) -> Union[SearchModel, None]:
     start = time.process_time()
-    logger.info(f"Searching for {query}")
+    logger.info(f"Searching for text: {query}")
 
     suggestion_token = str(uuid4())
     search_cache_key = f"search:{query}-{limit}"
@@ -197,6 +205,11 @@ async def search(
 
     else:
         logger.debug("No cached results found")
+
+        if await is_moderated(query):
+            logger.debug(f"Query is moderated: {query}")
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
+
         total = qd_client.count(collection_name=QD_COLLECTION, exact=False).count
         results = await search_answer(query, limit, user)
         answers = []
@@ -230,7 +243,9 @@ async def search(
     status_code=status.HTTP_202_ACCEPTED,
     name="Index workshops from microsoft.github.io. Task is run in background.",
 )
-async def index(user: UUID, background_tasks: BackgroundTasks, force: Optional[bool] = None) -> None:
+async def index(
+    user: UUID, background_tasks: BackgroundTasks, force: Optional[bool] = None
+) -> None:
     background_tasks.add_task(index_engine, user, force)
 
 
@@ -299,21 +314,21 @@ async def index_engine(user: UUID, force: bool = False) -> None:
 @retry(stop=stop_after_attempt(3))
 async def vector_from_text(prompt: str, user: UUID) -> List[float]:
     logger.debug(f"Getting vector for text: {prompt}")
-    response = openai.Embedding.create(
+    res = openai.Embedding.create(
         input=prompt,
         model=OAI_EMBEDDING_MODEL,
         user=str(
             user
         ),  # Unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
     )
-    return response.data[0].embedding
+    return res.data[0].embedding
 
 
 @retry(stop=stop_after_attempt(3))
 async def completion_from_text(prompt: str, user: UUID) -> str:
     logger.debug(f"Getting completion for text: {prompt}")
     # Use chat completion to get a more natural response and lower the usage cost
-    response = openai.ChatCompletion.create(
+    res = openai.ChatCompletion.create(
         messages=[{"role": "user", "content": prompt}],
         model=OAI_COMPLETION_MODEL,
         presence_penalty=1,  # Increase the model's likelihood to talk about new topics
@@ -321,7 +336,22 @@ async def completion_from_text(prompt: str, user: UUID) -> str:
             user
         ),  # Unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
     )
-    return response.choices[0].message.content
+    return res.choices[0].message.content
+
+
+@retry(stop=stop_after_attempt(3))
+async def is_moderated(prompt: str) -> bool:
+    logger.debug(f"Checking moderation for text: {prompt}")
+    res = openai.Moderation.create(
+        input=prompt,
+        model=OAI_MODERATION_MODEL,
+    )
+    logger.debug(f"Moderation result: {res}")
+    return (
+        res.results[0].flagged
+        or all(flag == True for name, flag in res.results[0].categories.items())
+        or all(score > 0.3 for name, score in res.results[0].category_scores.items())
+    )
 
 
 async def prompt_from_search_model(model: SearchModel) -> str:
@@ -387,8 +417,9 @@ async def prompt_from_search_model(model: SearchModel) -> str:
     return prompt
 
 
-
-async def embedding_text_from_model(model: MetadataModel, session: aiohttp.ClientSession) -> str:
+async def embedding_text_from_model(
+    model: MetadataModel, session: aiohttp.ClientSession
+) -> str:
     description = await sanitize_for_embedding(model.description)
     (content_raw, url) = await workshop_scrapping(model.url, session)
     content_clean = (await sanitize_for_embedding(content_raw))[:7500]
@@ -452,7 +483,9 @@ async def sanitize_for_embedding(raw: str) -> str:
     return raw
 
 
-async def workshop_scrapping(url: str, session: aiohttp.ClientSession) -> Tuple[str, URL]:
+async def workshop_scrapping(
+    url: str, session: aiohttp.ClientSession
+) -> Tuple[str, URL]:
     """
     Scrapes the workshop from the given URL and returns the content as a string.
     """
