@@ -103,7 +103,7 @@ function App() {
           target="_blank"
           rel="noreferrer"
         >
-          Source code is open, let's talk about it!
+          Source code is open, let&apos;s talk about it!
         </a>
       </footer>
     </>

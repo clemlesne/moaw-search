@@ -1,9 +1,8 @@
 import "./searchBar.scss";
 import { useState } from "react";
-import Loader from "./Loader";
 import Button from "./Button";
 
-const SearchBar = ({ fetchAnswers, loading }) => {
+function SearchBar({ fetchAnswers, loading }) {
   const [value, setValue] = useState("");
   const [lastValue, setLastValue] = useState("");
 
@@ -39,6 +38,6 @@ const SearchBar = ({ fetchAnswers, loading }) => {
       />
     </div>
   );
-};
+}
 
 export default SearchBar;
