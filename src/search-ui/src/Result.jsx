@@ -1,5 +1,6 @@
 import "./result.scss";
 import moment from "moment";
+import PropTypes from "prop-types"
 
 function Result({ metadata, score }) {
   return (
@@ -18,6 +19,11 @@ function Result({ metadata, score }) {
       </p>
     </a>
   );
+}
+
+Result.propTypes = {
+  metadata: PropTypes.object.isRequired,
+  score: PropTypes.number.isRequired,
 }
 
 export default Result;

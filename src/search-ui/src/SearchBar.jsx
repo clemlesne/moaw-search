@@ -1,6 +1,7 @@
 import "./searchBar.scss";
 import { useState } from "react";
 import Button from "./Button";
+import PropTypes from "prop-types"
 
 function SearchBar({ fetchAnswers, loading }) {
   const [value, setValue] = useState("");
@@ -34,10 +35,15 @@ function SearchBar({ fetchAnswers, loading }) {
         onClick={() => fetch(value)}
         text="Search"
         loading={loading}
-        emopji="🔎"
+        emoji="🔎"
       />
     </div>
   );
+}
+
+SearchBar.propTypes = {
+  fetchAnswers: PropTypes.func.isRequired,
+  loading: PropTypes.bool.isRequired,
 }
 
 export default SearchBar;
