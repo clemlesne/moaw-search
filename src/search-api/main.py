@@ -11,7 +11,7 @@ from models.suggestion import SuggestionModel
 from qdrant_client import QdrantClient
 from redis import Redis
 from tenacity import retry, stop_after_attempt
-from typing import List, Annotated, Tuple
+from typing import List, Annotated, Optional, Tuple
 from uuid import uuid4, UUID
 from yarl import URL
 import aiohttp
@@ -101,7 +101,7 @@ async def startup_event() -> None:
         timezone="UTC",
     )
     scheduler.add_job(
-        args={"user": uuid4(), "force": False},
+        args={"user": uuid4()},
         func=index_engine,
         id="index",
         jobstore="redis",
@@ -230,11 +230,11 @@ async def search(
     status_code=status.HTTP_202_ACCEPTED,
     name="Index workshops from microsoft.github.io. Task is run in background.",
 )
-async def index(user: UUID, background_tasks: BackgroundTasks, force: bool = False) -> None:
+async def index(user: UUID, background_tasks: BackgroundTasks, force: Optional[bool] = None) -> None:
     background_tasks.add_task(index_engine, user, force)
 
 
-async def index_engine(user: UUID, force: bool) -> None:
+async def index_engine(user: UUID, force: bool = False) -> None:
     async with aiohttp.ClientSession() as session:
         workshops = await session.get("https://microsoft.github.io/moaw/workshops.json")
         workshops = await workshops.json()
