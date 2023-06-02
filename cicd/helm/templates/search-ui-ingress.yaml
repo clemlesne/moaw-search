@@ -16,6 +16,7 @@ spec:
           port: 8080
       middlewares:
         - name: {{ include "moaw-search.fullname" . }}-search-ui-security
+        - name: {{ include "moaw-search.fullname" . }}-search-ui-ratelimit
   tls:
     {{- toYaml .Values.ingress.tls | nindent 4 }}
 ---
@@ -33,3 +34,15 @@ spec:
     stsIncludeSubdomains: true
     stsPreload: true
     stsSeconds: 31536000
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "moaw-search.fullname" . }}-search-ui-ratelimit
+  labels:
+    {{- include "moaw-search.labels" . | nindent 4 }}
+    app.kubernetes.io/component: search-ui
+spec:
+  rateLimit:
+    average: 10
+    burst: 50

@@ -7,8 +7,7 @@
   top: 0;
   z-index: 1000;
 
-  backdrop-filter: blur(32rem) brightness(.5);
-  -webkit-backdrop-filter: blur(32rem) brightness(.5);
+  backdrop-filter: blur(50vw);
 
   > * {
     font-size: 1.15rem;

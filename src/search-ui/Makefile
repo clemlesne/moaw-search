@@ -7,6 +7,9 @@ container_name := ghcr.io/clemlesne/moaw-search/$(component_name)
 install:
 	npm install
 
+lint:
+	npm run lint
+
 start:
 	npm run dev
 

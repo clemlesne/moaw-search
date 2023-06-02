@@ -6,8 +6,9 @@ MOAW Search is a search engine for the [MOAW](https://microsoft.github.io/moaw/)
 
 OpenAI models used are:
 
-- [`text-embedding-ada-002`](https://openai.com/blog/new-and-improved-embedding-model) for the search and data indexation
 - [`gpt-3.5-turbo`](https://platform.openai.com/docs/models/gpt-3-5) for the suggestions (`text-davinci-003` costs 10x more and this is sufficient for our use case)
+- [`text-embedding-ada-002`](https://openai.com/blog/new-and-improved-embedding-model) for the search and data indexation
+- [`text-moderation-stable`](https://platform.openai.com/docs/models/moderation) for the moderation
 
 ![Application screenshot](docs/main.png)
 
@@ -78,12 +79,14 @@ graph
   subgraph "OpenAI"
     oai_ada["ADA embedding"]
     oai_gpt["GPT completions"]
+    oai_modr["Moderation"]
   end
 
   api -- Cache entities --> redis
-  api -- Crawl data for indexing --> moaw
   api -- Generate completions --> oai_gpt
+  api -- Test moderation --> oai_modr
   api -- Generate embeddings --> oai_ada
+  api -- Index data every hour --> moaw
   api -- Search for similarities, index vectors --> qdrant
   ui -- Use APIs --> api
   user -- Navigate --> ui
@@ -109,6 +112,10 @@ sequenceDiagram
     API ->> Cache: Test if there is a cached response
 
     alt No cache
+        API ->> OpenAI: Test for moderation
+        alt Moderated
+          API ->> PWA: Answer with no content
+        end
         API ->> OpenAI: Generate embedding
         API ->> Database: Search for vector similarities
         API ->> Cache: Store results

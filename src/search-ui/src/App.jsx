@@ -57,14 +57,22 @@ function App() {
         timeout: 30000,
       })
       .then((res) => {
-        setAnswers(res.data.answers);
-        setStats(res.data.stats);
-        setSuggestionToken(res.data.suggestion_token);
+        if (res.data) {
+          setAnswers(res.data.answers);
+          setStats(res.data.stats);
+          setSuggestionToken(res.data.suggestion_token);
+        } else {
+          setError({ code: res.status, message: "No results" });
+          setAnswers([]);
+          setStats(null);
+          setSuggestion(null);
+        }
       })
       .catch((error) => {
         setError({ code: error.code, message: error.message });
         setAnswers([]);
         setStats(null);
+        setSuggestion(null);
       })
       .finally(() => setAnswersLoading(false));
   };
@@ -95,7 +103,7 @@ function App() {
           target="_blank"
           rel="noreferrer"
         >
-          Source code is open, let's talk about it!
+          Source code is open, let&apos;s talk about it!
         </a>
       </footer>
     </>
