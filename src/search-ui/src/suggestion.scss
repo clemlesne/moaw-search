@@ -9,11 +9,11 @@
   padding: 1rem;
 
   > *:not(:last-child) {
-    margin-bottom: 0.5rem;
+    margin-bottom: .5rem;
   }
 
   .suggestion__sub {
     color: var(--color-muted);
-    font-size: 0.8rem;
+    font-size: .8rem;
   }
 }

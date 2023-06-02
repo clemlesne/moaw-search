@@ -2,9 +2,10 @@ import "./searchBar.scss";
 import { useState } from "react";
 import Button from "./Button";
 import PropTypes from "prop-types"
+import useLocalStorageState from 'use-local-storage-state';
 
 function SearchBar({ fetchAnswers, loading }) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useLocalStorageState("values", { defaultValue: "" });
   const [lastValue, setLastValue] = useState("");
 
   const fetch = (value) => {
