@@ -16,7 +16,7 @@ spec:
         {{- include "moaw-search.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: search-ui
       annotations:
-        checksum/secret: {{ include (print $.Template.BasePath "/search-ui-config.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/search-ui-config.yaml") . | sha256sum }}
     spec:
       containers:
         - name: search-ui
