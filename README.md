@@ -24,9 +24,21 @@ make build start logs
 
 Then, go to [http://127.0.0.1:8081](http://127.0.0.1:8081).
 
+### Deploy locally
+
+All deployments are container based. You can deploy locally with Docker Compose or in Kubernetes with Helm.
+
+```bash
+# In Kubernetes, with Helm
+NAMESPACE=moaw-search TAG=develop make deploy
+
+# Locally, with Docker Compose
+make build start logs
+```
+
 ### Deploy in production
 
-Use Helm to install the latest released chart:
+Deployment is container based. Use Helm to install the latest released chart:
 
 ```bash
 helm repo add clemlesne-moaw-search https://clemlesne.github.io/moaw-search
