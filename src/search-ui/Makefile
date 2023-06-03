@@ -7,8 +7,19 @@ container_name := ghcr.io/clemlesne/moaw-search/$(component_name)
 install:
 	npm install
 
-lint:
+test:
+	@echo "➡️ Running NPM Lint..."
 	npm run lint
+
+	@echo "➡️ Running Hadolint..."
+	find . -name "Dockerfile*" -exec bash -c "echo 'File {}:' && hadolint {}" \;
+
+lint:
+	@echo "➡️ Running NPM Lint..."
+	npm run lint
+
+	@echo "➡️ Running Hadolint..."
+	find . -name "Dockerfile*" -exec bash -c "echo 'File {}:' && hadolint {}" \;
 
 start:
 	npm run dev

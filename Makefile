@@ -1,3 +1,5 @@
+.PHONY: version version-full build test start stop logs deploy
+
 version_small ?= $(shell $(MAKE) --silent version)
 version_full ?= $(shell $(MAKE) --silent version-full)
 
@@ -10,6 +12,10 @@ version-full:
 build:
 	@make -C src/search-api build
 	@make -C src/search-ui build
+
+test:
+	@make -C src/search-api test
+	@make -C src/search-ui test
 
 start:
 	docker-compose up -d
@@ -24,4 +30,4 @@ deploy:
 	test -n "$(NAMESPACE)"  # $$NAMESPACE
 	test -n "$(TAG)"  # $$TAG
 
-	helm upgrade --install --namespace $(NAMESPACE) --set image.tag=$(TAG) --reuse-values --dependency-update default cicd/helm
+	helm upgrade --install --wait --atomic --namespace $(NAMESPACE) --set image.tag=$(TAG) --reuse-values --dependency-update default cicd/helm

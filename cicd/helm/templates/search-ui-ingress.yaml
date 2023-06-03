@@ -17,6 +17,7 @@ spec:
       middlewares:
         - name: {{ include "moaw-search.fullname" . }}-search-ui-security
         - name: {{ include "moaw-search.fullname" . }}-search-ui-ratelimit
+        - name: {{ include "moaw-search.fullname" . }}-search-ui-compress
   tls:
     {{- toYaml .Values.ingress.tls | nindent 4 }}
 ---
@@ -46,3 +47,13 @@ spec:
   rateLimit:
     average: 10
     burst: 50
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "moaw-search.fullname" . }}-search-ui-compress
+  labels:
+    {{- include "moaw-search.labels" . | nindent 4 }}
+    app.kubernetes.io/component: search-ui
+spec:
+  compress: {}

@@ -41,7 +41,7 @@ spec:
           env:
             - name: ROOT_PATH
               value: /{{ include "moaw-search.fullname" . }}-search-api
-            - name: OPENAI_KEY
+            - name: OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "moaw-search.fullname" . }}-search-api
