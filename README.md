@@ -30,7 +30,7 @@ All deployments are container based. You can deploy locally with Docker Compose 
 
 ```bash
 # In Kubernetes, with Helm
-NAMESPACE=moaw-search TAG=develop make deploy
+NAMESPACE=moaw-search make deploy
 
 # Locally, with Docker Compose
 make build start logs
