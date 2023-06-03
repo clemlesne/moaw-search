@@ -23,7 +23,7 @@ function App() {
     FingerprintJS.load()
       .then((fp) => fp.get())
       .then((res) => setF(res.visitorId));
-  }, []);
+  });
 
   useEffect(() => {
     if (!suggestionToken) return;
