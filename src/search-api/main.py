@@ -17,6 +17,7 @@ from yarl import URL
 import aiohttp
 import html
 import logging
+import mmh3
 import openai
 import os
 import qdrant_client.http.models as qmodels
@@ -152,7 +153,7 @@ async def search_answer(query: str, limit: int, user: UUID) -> List[any]:
 @api.get(
     "/suggestion/{token}",
     name="Get suggestion from a search",
-    description=f"Suggestions are cached for {GLOBAL_CACHE_TTL_SECS} seconds.",
+    description=f"Suggestions are cached for {GLOBAL_CACHE_TTL_SECS} seconds. User is anonymized.",
 )
 async def suggestion(token: UUID, user: UUID) -> SuggestionModel:
     logger.info(f"Suggesting for {str(token)}")
@@ -184,7 +185,7 @@ async def suggestion(token: UUID, user: UUID) -> SuggestionModel:
 @api.get(
     "/search",
     name="Get search results",
-    description=f"Search results are cached for {GLOBAL_CACHE_TTL_SECS} seconds. Suggestion tokens are cached for {SUGGESTION_TOKEN_TTL_SECS} seconds. If the input is moderated, the API will return a HTTP 204 with no content.",
+    description=f"Search results are cached for {GLOBAL_CACHE_TTL_SECS} seconds. Suggestion tokens are cached for {SUGGESTION_TOKEN_TTL_SECS} seconds. If the input is moderated, the API will return a HTTP 204 with no content. User is anonymized.",
 )
 async def search(
     query: Annotated[str, Query(max_length=200)], user: UUID, limit: int = 10
@@ -241,7 +242,7 @@ async def search(
 @api.get(
     "/index",
     status_code=status.HTTP_202_ACCEPTED,
-    name="Index workshops from microsoft.github.io. Task is run in background.",
+    name="Index workshops from microsoft.github.io. Task is run in background. User is anonymized.",
 )
 async def index(
     user: UUID, background_tasks: BackgroundTasks, force: Optional[bool] = None
@@ -314,12 +315,11 @@ async def index_engine(user: UUID, force: bool = False) -> None:
 @retry(stop=stop_after_attempt(3))
 async def vector_from_text(prompt: str, user: UUID) -> List[float]:
     logger.debug(f"Getting vector for text: {prompt}")
+    user_hash = await uuid_anonymization(user)
     res = openai.Embedding.create(
         input=prompt,
         model=OAI_EMBEDDING_MODEL,
-        user=str(
-            user
-        ),  # Unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
+        user=user_hash,  # Unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
     )
     return res.data[0].embedding
 
@@ -327,6 +327,7 @@ async def vector_from_text(prompt: str, user: UUID) -> List[float]:
 @retry(stop=stop_after_attempt(3))
 async def completion_from_text(training: str, query: str, user: UUID) -> str:
     logger.debug(f"Getting completion for text: {query}")
+    user_hash = await uuid_anonymization(user)
     # Use chat completion to get a more natural response and lower the usage cost
     res = openai.ChatCompletion.create(
         messages=[
@@ -335,9 +336,7 @@ async def completion_from_text(training: str, query: str, user: UUID) -> str:
         ],
         model=OAI_COMPLETION_MODEL,
         presence_penalty=1,  # Increase the model's likelihood to talk about new topics
-        user=str(
-            user
-        ),  # Unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
+        user=user_hash,  # Unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
     )
     return res.choices[0].message.content
 
@@ -516,3 +515,14 @@ async def workshop_scrapping(
         return_url = res.url
 
     return (await res.text(), return_url)
+
+
+async def uuid_anonymization(id_raw: UUID) -> str:
+    """
+    Returns an anonymized version of the user ID, as a hexadecimal string.
+
+    The anonymization is done using the MurmurHash3 algorithm (https://en.wikipedia.org/wiki/MurmurHash). MurmurHash has, as of time of writing, the best distribution of all non-cryptographic hash functions, which makes it a good candidate for anonymization.
+    """
+    id_hash = mmh3.hash_bytes(id_raw.bytes).hex()
+    logger.debug(f"Anonymized UUID {id_raw} to {id_hash}")
+    return id_hash
