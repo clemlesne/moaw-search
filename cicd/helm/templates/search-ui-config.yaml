@@ -24,5 +24,11 @@ data:
         sub_filter 'http://127.0.0.1:8081' 'https://{{ .Values.ingress.host }}/{{ include "moaw-search.fullname" . }}-search-api';
         sub_filter_once off;
         sub_filter_types *;
+
+        # Cache static files
+        location /assets/ {
+          expires max;
+          add_header Cache-Control "public";
+        }
       }
     }
