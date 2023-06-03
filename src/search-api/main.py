@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, status, Response
 from fastapi.middleware.cors import CORSMiddleware
 from models.metadata import MetadataModel
+from models.readiness import ReadinessModel, ReadinessCheckModel, Status
 from models.search import SearchAnswerModel, SearchStatsModel, SearchModel
 from models.suggestion import SuggestionModel
 from qdrant_client import QdrantClient
@@ -65,7 +66,8 @@ SUGGESTION_TOKEN_TTL_SECS = 60  # 1 minute
 REDIS_HOST = os.getenv("REDIS_HOST")
 REDIS_PORT = 6379
 redis_client_api = Redis(db=0, host=REDIS_HOST, port=REDIS_PORT)
-redis_client_scheduler = RedisJobStore(db=1, host=REDIS_HOST, port=REDIS_PORT)
+# Init scheduler
+scheduler_client = RedisJobStore(db=1, host=REDIS_HOST, port=REDIS_PORT)
 
 # Ensure OpenAI API key is set
 if not openai.api_key:
@@ -98,7 +100,7 @@ async def startup_event() -> None:
     Starts the scheduler, which runs every hour to index the data in the database.
     """
     scheduler = AsyncIOScheduler(
-        jobstores={"redis": redis_client_scheduler},
+        jobstores={"redis": scheduler_client},
         timezone="UTC",
     )
     scheduler.add_job(
@@ -119,6 +121,78 @@ async def startup_event() -> None:
 )
 async def health_liveness_get() -> None:
     return None
+
+
+@api.get(
+    "/health/readiness",
+    name="Healthckeck readiness",
+)
+async def health_readiness_get() -> ReadinessModel:
+    # Test the scheduler cache with a transaction (insert, read, delete)
+    cache_scheduler_check = Status.FAIL
+    try:
+        key = str(uuid4())
+        value = "test"
+        scheduler_client.redis.set(key, value)
+        assert value == scheduler_client.redis.get(key).decode("utf-8")
+        scheduler_client.redis.delete(key)
+        assert None == scheduler_client.redis.get(key)
+        cache_scheduler_check = Status.OK
+    except Exception as exc:
+        logger.exception(exc)
+
+    # Test the database cache with a transaction (insert, read, delete)
+    cache_database_check = Status.FAIL
+    try:
+        key = str(uuid4())
+        value = "test"
+        redis_client_api.set(key, value)
+        assert value == redis_client_api.get(key).decode("utf-8")
+        redis_client_api.delete(key)
+        assert None == redis_client_api.get(key)
+        cache_database_check = Status.OK
+    except Exception as exc:
+        logger.exception(exc)
+
+    # Test database with a transaction (insert, read, delete)
+    database_check = Status.FAIL
+    try:
+        identifier = str(uuid4())
+        payload = {"test": "test"}
+        vector = [0.0] * QD_DIMENSION
+        qd_client.upsert(
+            collection_name=QD_COLLECTION,
+            points=qmodels.Batch(
+                ids=[identifier],
+                payloads=[payload],
+                vectors=[vector],
+            ),
+        )
+        assert "test" == qd_client.retrieve(collection_name=QD_COLLECTION, ids=[identifier])[0].payload["test"]
+        qd_client.delete(collection_name=QD_COLLECTION, points_selector=[identifier])
+        try:
+            qd_client.retrieve(collection_name=QD_COLLECTION, ids=[identifier])[0]
+        except IndexError:
+            database_check = Status.OK
+    except Exception as exc:
+        logger.exception(exc)
+
+    model = ReadinessModel(
+        status=Status.OK,
+        checks=[
+            ReadinessCheckModel(id="cache_database", status=cache_database_check),
+            ReadinessCheckModel(id="cache_scheduler", status=cache_scheduler_check),
+            ReadinessCheckModel(id="database", status=database_check),
+            ReadinessCheckModel(id="startup", status=Status.OK),
+        ],
+    )
+
+    for check in model.checks:
+        if check.status != Status.OK:
+            model.status = Status.FAIL
+            break
+
+    return model
 
 
 async def search_answer(query: str, limit: int, user: UUID) -> List[any]:
