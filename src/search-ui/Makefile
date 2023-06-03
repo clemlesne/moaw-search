@@ -7,7 +7,13 @@ container_name := ghcr.io/clemlesne/moaw-search/$(component_name)
 install:
 	npm install
 
+upgrade:
+	npm update
+
 test:
+	@echo "➡️ Scanning for outdated dependencies..."
+	npm outdated
+
 	@echo "➡️ Running NPM Lint..."
 	npm run lint
 
