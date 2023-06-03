@@ -22,7 +22,12 @@ lint:
 	find . -name "Dockerfile*" -exec bash -c "echo 'File {}:' && hadolint {}" \;
 
 start:
-	VERSION=$(version_full) python3 -m uvicorn main:api --reload --port 8081
+	VERSION=$(version_full) python3 -m uvicorn main:api \
+		--header x-version:$${VERSION} \
+		--no-server-header \
+		--port 8081 \
+		--proxy-headers \
+		--reload
 
 build:
 	$(docker) build \
