@@ -1,14 +1,20 @@
+# Init environment variables
+from dotenv import load_dotenv, find_dotenv
+load_dotenv(find_dotenv(), override=True)
+
+
+# Import modules
 from apscheduler.jobstores.redis import RedisJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, status, Response
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from models.metadata import MetadataModel
-from models.readiness import ReadinessModel, ReadinessCheckModel, Status
+from models.readiness import ReadinessModel, ReadinessCheckModel, Status as ReadinessStatus
 from models.search import SearchAnswerModel, SearchStatsModel, SearchModel
-from models.suggestion import SuggestionModel
+from models.suggestion import SuggestionModel, Status as SuggestionStatus
 from qdrant_client import QdrantClient
 from redis import Redis
 from tenacity import retry, stop_after_attempt
@@ -27,8 +33,6 @@ import textwrap
 import time
 
 
-# Init config
-load_dotenv()
 VERSION = os.getenv("VERSION")
 # Init logging
 logging.basicConfig(level=logging.INFO)
@@ -62,7 +66,7 @@ QD_METRIC = qmodels.Distance.DOT
 qd_client = QdrantClient(host=QD_HOST, port=6333)
 # Init Redis
 GLOBAL_CACHE_TTL_SECS = 60 * 60  # 1 hour
-SUGGESTION_TOKEN_TTL_SECS = 60  # 1 minute
+SUGGESTION_TOKEN_TTL_SECS = 60 * 3  # 3 minutes
 REDIS_HOST = os.getenv("REDIS_HOST")
 REDIS_PORT = 6379
 redis_client_api = Redis(db=0, host=REDIS_HOST, port=REDIS_PORT)
@@ -129,7 +133,7 @@ async def health_liveness_get() -> None:
 )
 async def health_readiness_get() -> ReadinessModel:
     # Test the scheduler cache with a transaction (insert, read, delete)
-    cache_scheduler_check = Status.FAIL
+    cache_scheduler_check = ReadinessStatus.FAIL
     try:
         key = str(uuid4())
         value = "test"
@@ -137,12 +141,12 @@ async def health_readiness_get() -> ReadinessModel:
         assert value == scheduler_client.redis.get(key).decode("utf-8")
         scheduler_client.redis.delete(key)
         assert None == scheduler_client.redis.get(key)
-        cache_scheduler_check = Status.OK
-    except Exception as exc:
-        logger.exception(exc)
+        cache_scheduler_check = ReadinessStatus.OK
+    except Exception:
+        logger.exception("Error connecting to the scheduler cache database", exc_info=True)
 
     # Test the database cache with a transaction (insert, read, delete)
-    cache_database_check = Status.FAIL
+    cache_database_check = ReadinessStatus.FAIL
     try:
         key = str(uuid4())
         value = "test"
@@ -150,12 +154,12 @@ async def health_readiness_get() -> ReadinessModel:
         assert value == redis_client_api.get(key).decode("utf-8")
         redis_client_api.delete(key)
         assert None == redis_client_api.get(key)
-        cache_database_check = Status.OK
-    except Exception as exc:
-        logger.exception(exc)
+        cache_database_check = ReadinessStatus.OK
+    except Exception:
+        logger.exception("Error connecting to the database cache database", exc_info=True)
 
     # Test database with a transaction (insert, read, delete)
-    database_check = Status.FAIL
+    database_check = ReadinessStatus.FAIL
     try:
         identifier = str(uuid4())
         payload = {"test": "test"}
@@ -173,23 +177,23 @@ async def health_readiness_get() -> ReadinessModel:
         try:
             qd_client.retrieve(collection_name=QD_COLLECTION, ids=[identifier])[0]
         except IndexError:
-            database_check = Status.OK
-    except Exception as exc:
-        logger.exception(exc)
+            database_check = ReadinessStatus.OK
+    except Exception:
+        logger.exception("Error connecting to the database", exc_info=True)
 
     model = ReadinessModel(
-        status=Status.OK,
+        status=ReadinessStatus.OK,
         checks=[
             ReadinessCheckModel(id="cache_database", status=cache_database_check),
             ReadinessCheckModel(id="cache_scheduler", status=cache_scheduler_check),
             ReadinessCheckModel(id="database", status=database_check),
-            ReadinessCheckModel(id="startup", status=Status.OK),
+            ReadinessCheckModel(id="startup", status=ReadinessStatus.OK),
         ],
     )
 
     for check in model.checks:
-        if check.status != Status.OK:
-            model.status = Status.FAIL
+        if check.status != ReadinessStatus.OK:
+            model.status = ReadinessStatus.FAIL
             break
 
     return model
@@ -226,55 +230,57 @@ async def search_answer(query: str, limit: int, user: UUID) -> List[any]:
 @api.get(
     "/suggestion/{token}",
     name="Get suggestion from a search",
-    description=f"Suggestions are cached for {GLOBAL_CACHE_TTL_SECS} seconds. User is anonymized.",
+    description=f"Token is cached for {SUGGESTION_TOKEN_TTL_SECS}. Suggestions are cached for {GLOBAL_CACHE_TTL_SECS} seconds.",
 )
-async def suggestion(token: UUID, user: UUID) -> SuggestionModel:
-    logger.info(f"Suggesting for {str(token)}")
+async def suggestion(token: str) -> SuggestionModel:
+    cache_key = suggestion_key(token)
+    model_raw = redis_client_api.get(cache_key)
 
-    token_cache_key = f"token:{str(token)}"
-
-    search_model_raw = redis_client_api.get(token_cache_key)
-    if not search_model_raw:
+    if model_raw is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Suggestion not found or expired",
         )
-    search_model = SearchModel.parse_raw(search_model_raw)
 
-    suggestion_cache_key = f"suggestion:{search_model.query}"
+    logger.debug("Found suggestion in cache")
+    return SuggestionModel.parse_raw(model_raw)
 
-    model_raw = redis_client_api.get(suggestion_cache_key)
-    if model_raw:
-        logger.debug("Found suggestion in cache")
-        return SuggestionModel.parse_raw(model_raw)
 
-    training = await prompt_from_search_model(search_model)
-    comletion = await completion_from_text(training, search_model.query, user)
-    model = SuggestionModel(message=comletion)
-    redis_client_api.set(suggestion_cache_key, model.json(), ex=GLOBAL_CACHE_TTL_SECS)
-    return model
+def suggestion_engine(search_model: SearchModel, user: UUID) -> None:
+    # Execute the suggestion
+    try:
+        cache_key = suggestion_key(search_model.suggestion_token)
+        training = prompt_from_search_model(search_model)
+        completion = completion_from_text(training, search_model.query, user)
+        model = SuggestionModel(
+            message=completion,
+            status=SuggestionStatus.SUCCESS,
+        )
+    except Exception:
+        logger.exception("Failed to generate suggestion", exc_info=True)
+        model = SuggestionModel(status=SuggestionStatus.FAIL)
+
+    if cache_key:
+        redis_client_api.set(cache_key, model.json(), ex=GLOBAL_CACHE_TTL_SECS)
 
 
 @api.get(
     "/search",
     name="Get search results",
-    description=f"Search results are cached for {GLOBAL_CACHE_TTL_SECS} seconds. Suggestion tokens are cached for {SUGGESTION_TOKEN_TTL_SECS} seconds. If the input is moderated, the API will return a HTTP 204 with no content. User is anonymized.",
+    description=f"Search results are cached for {GLOBAL_CACHE_TTL_SECS} seconds. Suggestion tokens are cached for {GLOBAL_CACHE_TTL_SECS} seconds. If the input is moderated, the API will return a HTTP 204 with no content. User is anonymized.",
 )
 async def search(
-    query: Annotated[str, Query(max_length=200)], user: UUID, limit: int = 10
+    query: Annotated[str, Query(max_length=200)], user: UUID, background_tasks: BackgroundTasks, limit: int = 10
 ) -> Union[SearchModel, None]:
-    start = time.process_time()
+    start = time.monotonic()
     logger.info(f"Searching for text: {query}")
-
-    suggestion_token = str(uuid4())
     search_cache_key = f"search:{query}-{limit}"
-    token_cache_key = f"token:{suggestion_token}"
 
-    model_raw = redis_client_api.get(search_cache_key)
-    if model_raw:
-        model = SearchModel.parse_raw(model_raw)
-        answers = model.answers
-        total = model.stats.total
+    suggestion_cached = redis_client_api.get(search_cache_key)
+    if suggestion_cached:
+        search_model = SearchModel.parse_raw(suggestion_cached)
+        answers = search_model.answers
+        total = search_model.stats.total
         logger.debug("Found cached results")
 
     else:
@@ -297,19 +303,29 @@ async def search(
                     )
                 )
             except TypeError:
-                logger.exception(f"Error parsing model: {res.id}")
+                logger.exception(f"Error parsing model: {res.id}", exc_info=True)
 
-    model = SearchModel(
+    search_model = SearchModel(
         answers=answers,
         query=query,
-        stats=SearchStatsModel(time=(time.process_time() - start), total=total),
-        suggestion_token=suggestion_token,
+        suggestion_token=str_anonymization(f"{query}-{limit}"),
     )
 
-    redis_client_api.set(search_cache_key, model.json(), ex=GLOBAL_CACHE_TTL_SECS)
-    redis_client_api.set(token_cache_key, model.json(), ex=SUGGESTION_TOKEN_TTL_SECS)
+    # Test if suggestion is already in cache
+    suggestion_cache_key = suggestion_key(search_model.suggestion_token)
+    suggestion_cached = redis_client_api.get(suggestion_cache_key)
 
-    return model
+    if not suggestion_cached:
+        # Set the suggestion to in progress
+        suggestion_model = SuggestionModel(status=SuggestionStatus.IN_PROGRESS)
+        redis_client_api.set(suggestion_cache_key, suggestion_model.json(), ex=SUGGESTION_TOKEN_TTL_SECS)
+        # Run the suggestion engine in the background
+        background_tasks.add_task(run_in_threadpool, lambda: suggestion_engine(search_model, user))
+
+    search_model.stats = SearchStatsModel(time=(time.monotonic() - start), total=total)
+    redis_client_api.set(search_cache_key, search_model.json(), ex=GLOBAL_CACHE_TTL_SECS)
+
+    return search_model
 
 
 @api.get(
@@ -355,8 +371,8 @@ async def index_engine(user: UUID, force: bool = False) -> None:
                         if stored.last_updated == model.last_updated:
                             logger.info(f'Workshop "{model.title}" already indexed')
                             continue
-                except Exception as e:
-                    logger.exception(e)
+                except Exception:
+                    logger.exception("Error searching for workshops", exc_info=True)
 
             logger.info(f"Parsing workshop {model.title}...")
             text = await embedding_text_from_model(model, session)
@@ -388,7 +404,7 @@ async def index_engine(user: UUID, force: bool = False) -> None:
 @retry(stop=stop_after_attempt(3))
 async def vector_from_text(prompt: str, user: UUID) -> List[float]:
     logger.debug(f"Getting vector for text: {prompt}")
-    user_hash = await uuid_anonymization(user)
+    user_hash = str_anonymization(user.bytes)
     res = openai.Embedding.create(
         input=prompt,
         model=OAI_EMBEDDING_MODEL,
@@ -398,9 +414,9 @@ async def vector_from_text(prompt: str, user: UUID) -> List[float]:
 
 
 @retry(stop=stop_after_attempt(3))
-async def completion_from_text(training: str, query: str, user: UUID) -> str:
+def completion_from_text(training: str, query: str, user: UUID) -> str:
     logger.debug(f"Getting completion for text: {query}")
-    user_hash = await uuid_anonymization(user)
+    user_hash = str_anonymization(user.bytes)
     # Use chat completion to get a more natural response and lower the usage cost
     res = openai.ChatCompletion.create(
         messages=[
@@ -429,7 +445,7 @@ async def is_moderated(prompt: str) -> bool:
     )
 
 
-async def prompt_from_search_model(model: SearchModel) -> str:
+def prompt_from_search_model(model: SearchModel) -> str:
     prompt = textwrap.dedent(
         f"""
         You are a training consultant. You are working for Microsoft. You have 20 years' experience in the technology industry and have also worked as a life coach. Today, we are the {datetime.now()}.
@@ -446,12 +462,13 @@ async def prompt_from_search_model(model: SearchModel) -> str:
         - Limit your answer few sentences
         - Not talk about politics, religion, or any other sensitive topic
         - QUERY defines the workshop you are looking for
+        - Return to the user an intelligible of the workshops, always rephrase the data
         - Sources are only workshops you have seen
         - Use imperative form (example: "Do this" instead of "You should do this")
         - Use your knowledge to add value to your proposal
         - WORKSHOP are sorted by relevance, from the most relevant to the least relevant
         - WORKSHOP are workshops examples you will base your answer
-        - Write links with Markdown syntax (example: [which can be found here](https://google.com))
+        - Write links with Markdown syntax (example: [You can find it at google.com.](https://google.com))
         - Write lists with Markdown syntax, using dashes (example: - First item) or numbers (example: 1. First item)
         - Write your answer in English
         - You can precise the way you want to execute the workshop
@@ -590,12 +607,18 @@ async def workshop_scrapping(
     return (await res.text(), return_url)
 
 
-async def uuid_anonymization(id_raw: UUID) -> str:
+def str_anonymization(bytes: bytes) -> str:
     """
-    Returns an anonymized version of the user ID, as a hexadecimal string.
+    Returns an anonymized version of a string, as a hexadecimal string.
 
     The anonymization is done using the MurmurHash3 algorithm (https://en.wikipedia.org/wiki/MurmurHash). MurmurHash has, as of time of writing, the best distribution of all non-cryptographic hash functions, which makes it a good candidate for anonymization.
     """
-    id_hash = mmh3.hash_bytes(id_raw.bytes).hex()
-    logger.debug(f"Anonymized UUID {id_raw} to {id_hash}")
+    id_hash = mmh3.hash_bytes(bytes).hex()
     return id_hash
+
+
+def suggestion_key(str: str) -> str:
+    """
+    Returns the key to use to cache the suggestions for the given string.
+    """
+    return f"suggestion:{str}"
