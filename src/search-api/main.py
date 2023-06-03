@@ -70,7 +70,7 @@ redis_client_api = Redis(db=0, host=REDIS_HOST, port=REDIS_PORT)
 scheduler_client = RedisJobStore(db=1, host=REDIS_HOST, port=REDIS_PORT)
 
 # Ensure OpenAI API key is set
-if not openai.api_key:
+if not os.getenv("OPENAI_API_KEY"):
     raise Exception("OpenAI API key (OPENAI_API_KEY) is not set")
 
 # Ensure Qdrant collection exists
