@@ -90,7 +90,7 @@ function App() {
         )}
         {answers.map((answer) => (
           <Result
-            key={answer.metadata.id}
+            key={answer.id}
             metadata={answer.metadata}
             score={answer.score}
           />

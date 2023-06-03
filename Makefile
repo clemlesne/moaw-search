@@ -28,6 +28,5 @@ logs:
 
 deploy:
 	test -n "$(NAMESPACE)"  # $$NAMESPACE
-	test -n "$(TAG)"  # $$TAG
 
-	helm upgrade --install --wait --atomic --namespace $(NAMESPACE) --set image.tag=$(TAG) --reuse-values --dependency-update default cicd/helm
+	helm upgrade --install --wait --atomic --namespace $(NAMESPACE) --dependency-update default --values .values.yaml cicd/helm

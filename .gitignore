@@ -1,6 +1,9 @@
 # See: https://github.com/clemlesne/gitops-version
 .version.cache
 
+# Local Helm values.yaml file
+.values.yaml
+
 # Created by https://www.toptal.com/developers/gitignore/api/osx,linux,eclipse,windows,visualstudio,visualstudiocode,dotenv
 # Edit at https://www.toptal.com/developers/gitignore?templates=osx,linux,eclipse,windows,visualstudio,visualstudiocode,dotenv
 

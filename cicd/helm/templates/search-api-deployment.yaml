@@ -6,7 +6,6 @@ metadata:
     {{- include "moaw-search.labels" . | nindent 4 }}
     app.kubernetes.io/component: search-api
 spec:
-  replicas: {{ .Values.replicaCount | int | required "A value for .Values.replicaCount is required" }}
   selector:
     matchLabels:
       {{- include "moaw-search.selectorLabels" . | nindent 6 }}
@@ -27,11 +26,18 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+          resources: {{- toYaml .Values.resources | nindent 12 }}
           livenessProbe:
             periodSeconds: 5
             timeoutSeconds: 5
             httpGet:
               path: /health/liveness
+              port: http
+          readinessProbe:
+            periodSeconds: 15
+            timeoutSeconds: 5
+            httpGet:
+              path: /health/readiness
               port: http
           startupProbe:
             periodSeconds: 5

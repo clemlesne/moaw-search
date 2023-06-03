@@ -1,0 +1,20 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "moaw-search.fullname" . }}-search-ui
+  labels:
+    {{- include "moaw-search.labels" . | nindent 4 }}
+    app.kubernetes.io/component: search-ui
+spec:
+  scaleTargetRef:
+    name: {{ include "moaw-search.fullname" . }}-search-ui
+  minReplicaCount: {{ .Values.replicaCount | int | required "A value for .Values.replicaCount is required" }}
+  triggers:
+    - type: cpu
+      metadata:
+        type: Utilization
+        value: "50"
+    - type: memory
+      metadata:
+        type: Utilization
+        value: "50"

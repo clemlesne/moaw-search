@@ -6,7 +6,6 @@ metadata:
     {{- include "moaw-search.labels" . | nindent 4 }}
     app.kubernetes.io/component: search-ui
 spec:
-  replicas: {{ .Values.replicaCount | int | required "A value for .Values.replicaCount is required" }}
   selector:
     matchLabels:
       {{- include "moaw-search.selectorLabels" . | nindent 6 }}
@@ -17,7 +16,7 @@ spec:
         {{- include "moaw-search.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: search-ui
       annotations:
-        checksum/secret: {{ include (print $.Template.BasePath "/search-ui-config.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/search-ui-config.yaml") . | sha256sum }}
     spec:
       containers:
         - name: search-ui
@@ -27,6 +26,7 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+          resources: {{- toYaml .Values.resources | nindent 12 }}
           livenessProbe:
             periodSeconds: 5
             timeoutSeconds: 5

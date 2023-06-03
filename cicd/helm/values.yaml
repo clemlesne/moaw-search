@@ -2,7 +2,7 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
 
-replicaCount: 3
+replicaCount: 2
 nameOverride: ""
 fullnameOverride: ""
 
@@ -13,15 +13,37 @@ ingress:
 secrets:
   openaiKey: ""
 
+resources:
+  requests:
+    cpu: .25
+    memory: 256Mi
+  limits:
+    cpu: .5
+    memory: 512Mi
+
 redis:
   auth:
     enabled: false
   replica:
     replicaCount: 0
+  resources:
+    requests:
+      cpu: .25
+      memory: 256Mi
+    limits:
+      cpu: .5
+      memory: 512Mi
 
 qdrant:
-  replicaCount: 3
+  replicaCount: 2
   updateConfigurationOnChange: true
   persistence:
     size: 10Gi
     storageClassName: managed-csi
+  resources:
+    requests:
+      cpu: .25
+      memory: 256Mi
+    limits:
+      cpu: .5
+      memory: 512Mi
