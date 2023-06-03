@@ -8,10 +8,18 @@ install:
 	python3 -m pip install -r requirements.txt
 
 test:
+	@echo "➡️ Running Black..."
 	python3 -m black --check .
 
+	@echo "➡️ Running Hadolint..."
+	find . -name "Dockerfile*" -exec bash -c "echo 'File {}:' && hadolint {}" \;
+
 lint:
+	@echo "➡️ Running Black..."
 	python3 -m black .
+
+	@echo "➡️ Running Hadolint..."
+	find . -name "Dockerfile*" -exec bash -c "echo 'File {}:' && hadolint {}" \;
 
 start:
 	VERSION=$(version_full) python3 -m uvicorn main:api --reload --port 8081
