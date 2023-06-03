@@ -7,6 +7,12 @@ container_name := ghcr.io/clemlesne/moaw-search/$(component_name)
 install:
 	python3 -m pip install -r requirements.txt
 
+test:
+	python3 -m black --check .
+
+lint:
+	python3 -m black .
+
 start:
 	VERSION=$(version_full) python3 -m uvicorn main:api --reload --port 8081
 
@@ -16,6 +22,3 @@ build:
 		--tag $(container_name):$(version_small) \
 		--tag $(container_name):latest \
 		.
-
-test:
-	python3 -m black .
