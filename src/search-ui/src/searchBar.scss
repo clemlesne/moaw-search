@@ -7,7 +7,7 @@
   top: 0;
   z-index: 1000;
 
-  backdrop-filter: blur(50vw);
+  backdrop-filter: blur(25vw) contrast(.75);
 
   > * {
     font-size: 1.15rem;
@@ -35,7 +35,7 @@
     flex-basis: 40rem;
 
     &:focus {
-      outline: 2px solid var(--border-active);
+      outline: 3px solid var(--border-active);
     }
   }
 
