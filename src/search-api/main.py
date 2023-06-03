@@ -37,7 +37,6 @@ logger.setLevel(logging.DEBUG)
 OAI_EMBEDDING_MODEL = "text-embedding-ada-002"
 OAI_COMPLETION_MODEL = "gpt-3.5-turbo"
 OAI_MODERATION_MODEL = "text-moderation-stable"
-openai.api_key = os.getenv("OPENAI_KEY")
 # Init FastAPI
 ROOT_PATH = os.getenv("ROOT_PATH")
 logger.info(f"Using root path: {ROOT_PATH}")
@@ -70,7 +69,7 @@ redis_client_scheduler = RedisJobStore(db=1, host=REDIS_HOST, port=REDIS_PORT)
 
 # Ensure OpenAI API key is set
 if not openai.api_key:
-    raise Exception("OPENAI_KEY is not set")
+    raise Exception("OpenAI API key (OPENAI_API_KEY) is not set")
 
 # Ensure Qdrant collection exists
 try:
