@@ -29,21 +29,39 @@ function App() {
     if (!suggestionToken) return;
     setError(null);
     setSuggestionLoading(true);
-    axios
-      .get(`http://127.0.0.1:8081/suggestion/${suggestionToken}`, {
-        timeout: 30000,
-        params: {
-          user: F,
-        },
-      })
-      .then((res) => {
-        setSuggestion(res.data.message);
-      })
-      .catch((error) => {
-        setError({ code: error.code, message: error.message });
-        setSuggestion(null);
-      })
-      .finally(() => setSuggestionLoading(false));
+
+    const fetchSuggestion = async () => {
+      let job = {status: "in_progress"};
+      let i = 0;
+
+      while (true) {
+        await axios
+          .get(`http://127.0.0.1:8081/suggestion/${suggestionToken}`, {
+            timeout: 30000,
+            params: {
+              user: F,
+            },
+          })
+          .then((res) => {
+            job = res.data;
+          })
+          .catch((error) => {
+            setError({ code: error.code, message: error.message });
+            job = null;
+          });
+
+        if (!(job && job.status == "in_progress") || i++ > 60) {
+          break;
+        }
+
+        await delay(1000);
+      }
+
+      job && setSuggestion(job.message);
+      setSuggestionLoading(false);
+    };
+
+    fetchSuggestion();
   }, [suggestionToken, F]);
 
   const fetchAnswers = async (value) => {
@@ -111,5 +129,7 @@ function App() {
     </>
   );
 }
+
+const delay = ms => new Promise(res => setTimeout(res, ms));
 
 export default App;

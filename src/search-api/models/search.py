@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from .metadata import MetadataModel
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 
@@ -18,5 +18,5 @@ class SearchStatsModel(BaseModel):
 class SearchModel(BaseModel):
     answers: List[SearchAnswerModel]
     query: str
-    stats: SearchStatsModel
-    suggestion_token: UUID
+    stats: Optional[SearchStatsModel]
+    suggestion_token: str

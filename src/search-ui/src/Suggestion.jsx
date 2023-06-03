@@ -8,7 +8,8 @@ function Suggestion({ message, loading }) {
   return (
     <div className="suggestion">
       {loading && <Loader />}
-      {!loading && <ReactMarkdown linkTarget="_blank" remarkPlugins={[remarkGfm]}>{message}</ReactMarkdown>}
+      { /* eslint-disable-next-line react/no-children-prop */ }
+      {!loading && <ReactMarkdown linkTarget="_blank" remarkPlugins={[remarkGfm]} children={message} />}
       <span className="suggestion__sub">AI generated results can be wrong.</span>
     </div>
   )
