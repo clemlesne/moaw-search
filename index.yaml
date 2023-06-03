@@ -2,6 +2,15 @@ apiVersion: v1
 entries:
   moaw-search:
   - apiVersion: v1
+    appVersion: 0.7.2+20230603200726
+    created: "2023-06-03T20:10:33.171635372Z"
+    description: MOAW Search is a search engine for the MOAW workshops.
+    digest: 60b694db43265d56d3101effbb23bac2dc7f8cc5cb421767645ec08a90927812
+    name: moaw-search
+    urls:
+    - https://github.com/clemlesne/moaw-search/releases/download/moaw-search-0.7.2/moaw-search-0.7.2.tgz
+    version: 0.7.2
+  - apiVersion: v1
     appVersion: 0.7.1+20230603150527
     created: "2023-06-03T15:14:23.55812709Z"
     description: MOAW Search is a search engine for the MOAW workshops.
@@ -55,4 +64,4 @@ entries:
     urls:
     - https://github.com/clemlesne/moaw-search/releases/download/moaw-search-0.3.1/moaw-search-0.3.1.tgz
     version: 0.3.1
-generated: "2023-06-03T15:14:23.558283992Z"
+generated: "2023-06-03T20:10:33.171660472Z"
