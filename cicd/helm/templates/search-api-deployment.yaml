@@ -6,7 +6,6 @@ metadata:
     {{- include "moaw-search.labels" . | nindent 4 }}
     app.kubernetes.io/component: search-api
 spec:
-  replicas: {{ .Values.replicaCount | int | required "A value for .Values.replicaCount is required" }}
   selector:
     matchLabels:
       {{- include "moaw-search.selectorLabels" . | nindent 6 }}
