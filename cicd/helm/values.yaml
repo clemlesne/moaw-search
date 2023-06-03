@@ -2,7 +2,7 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
 
-replicaCount: 3
+replicaCount: 2
 nameOverride: ""
 fullnameOverride: ""
 
@@ -35,7 +35,7 @@ redis:
       memory: 512Mi
 
 qdrant:
-  replicaCount: 3
+  replicaCount: 2
   updateConfigurationOnChange: true
   persistence:
     size: 10Gi
