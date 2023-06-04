@@ -268,9 +268,14 @@ async def suggestion_sse_generator(req: Request, search: SearchModel, user: UUID
     # Execute the suggestion
     asyncio.get_running_loop().run_in_executor(None, lambda: completion_from_text(search, suggestion_key_req, user))
 
+    is_end = False
+
     while True:
         # If client closes connection, stop sending events
         if await req.is_disconnected():
+            break
+
+        if is_end:
             break
 
         try:
@@ -285,21 +290,18 @@ async def suggestion_sse_generator(req: Request, search: SearchModel, user: UUID
                     try:
                         message = message_content[1][b"message"].decode("utf-8")
                         if message == REDIS_STREAM_STOPWORD:
-                            # Delete the temporary cache key
-                            logger.debug(f"Deleting temporary cache key {suggestion_key_req}")
-                            redis_client_api.delete(suggestion_key_req)
-                            # Store the full message in the cache
-                            logger.debug(f"Storing full message in cache key {suggestion_key_static}")
-                            redis_client_api.set(suggestion_key_static, message_full, ex=GLOBAL_CACHE_TTL_SECS)
+                            is_end = True
                             break
+
                         message_full += message
                         message_loop += message
                     except Exception:
                         logger.exception("Error decoding message", exc_info=True)
 
                 # Send the message to the client after the loop
-                logger.debug(f"Sending message: {message_loop}")
-                yield message_loop
+                if message_loop:
+                    logger.debug(f"Sending message: {message_loop}")
+                    yield message_loop
 
         except asyncio.CancelledError:
             logger.info(f"Disconnected from client (via refresh/close) {req.client}")
@@ -309,6 +311,13 @@ async def suggestion_sse_generator(req: Request, search: SearchModel, user: UUID
             break
 
         await asyncio.sleep(0.5)
+
+    # Delete the temporary cache key
+    logger.debug(f"Deleting temporary cache key {suggestion_key_req}")
+    redis_client_api.delete(suggestion_key_req)
+    # Store the full message in the cache
+    logger.debug(f"Storing full message in cache key {suggestion_key_static}")
+    redis_client_api.set(suggestion_key_static, message_full, ex=GLOBAL_CACHE_TTL_SECS)
 
 @api.get(
     "/search",
