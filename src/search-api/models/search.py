@@ -19,4 +19,4 @@ class SearchModel(BaseModel):
     answers: List[SearchAnswerModel]
     query: str
     stats: SearchStatsModel
-    suggestion_token: str
+    suggestion_token: UUID

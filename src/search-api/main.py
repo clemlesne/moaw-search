@@ -35,16 +35,16 @@ import time
 
 VERSION = os.getenv("VERSION")
 # Init logging
-logging.basicConfig(level=logging.INFO)
+LOGGING_LEVEL = os.getenv("LOGGING_LEVEL") or logging.INFO
+logging.basicConfig(level=LOGGING_LEVEL)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 # Init OpenAI
 OAI_EMBEDDING_MODEL = "text-embedding-ada-002"
 OAI_COMPLETION_MODEL = "gpt-3.5-turbo"
 OAI_MODERATION_MODEL = "text-moderation-stable"
 # Init FastAPI
 ROOT_PATH = os.getenv("ROOT_PATH")
-logger.info(f"Using root path: {ROOT_PATH}")
+logger.info(f"Using root path: \"{ROOT_PATH}\"")
 api = FastAPI(
     contact={
         "url": "https://github.com/clemlesne/moaw-search",
@@ -234,63 +234,73 @@ async def search_answer(query: str, limit: int, user: UUID) -> List[any]:
     description=f"Token is cached for {SUGGESTION_TOKEN_TTL_SECS}. Suggestions are cached for {GLOBAL_CACHE_TTL_SECS} seconds. User is anonymized.",
 )
 async def suggestion(token: str, user: UUID, req: Request) -> EventSourceResponse:
-    token_cache_key = f"token:{str(token)}"
+    token_key = await token_cache_key(str(token))
 
-    search_raw = redis_client_api.get(token_cache_key)
+    search_raw = redis_client_api.get(token_key)
     if not search_raw:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Suggestion not found or expired",
         )
+
     search = SearchModel.parse_raw(search_raw)
+    return EventSourceResponse(suggestion_sse_generator(req, search, user))
 
-    async def event_generator():
-        message_id = 0
-        message_full = ""
-        cache_key = await suggestion_key(search.suggestion_token)
-        cache_key_cold = await suggestion_key(search.query)
 
-        # Test if the cache key exists
-        if redis_client_api.exists(cache_key_cold):
-            message = redis_client_api.get(cache_key_cold).decode("utf-8")
-            logger.debug(f"Cache key {cache_key_cold} exists")
-            yield message
-            return
+async def suggestion_sse_generator(req: Request, search: SearchModel, user: UUID):
+    """
+    SSE (Server Sent Event) generator for suggestion. It will return the suggestion as soon as it is available.
+    """
+    logger.debug(f"Starting SSE for suggestion {search.query} for user {user}")
 
-        # Execute the suggestion
-        asyncio.get_running_loop().run_in_executor(None, lambda: completion_from_text(search, cache_key, user))
+    message_id = 0
+    message_full = ""
+    suggestion_key_req = await suggestion_cache_key(search.suggestion_token)
+    suggestion_key_static = await suggestion_cache_key(search.query)
 
-        while True:
-            # If client closes connection, stop sending events
-            if await req.is_disconnected():
-                break
+    # Test if the cache key exists
+    if redis_client_api.exists(suggestion_key_static):
+        message = redis_client_api.get(suggestion_key_static).decode("utf-8")
+        logger.debug(f"Cache key {suggestion_key_static} exists")
+        yield message
+        return
 
-            try:
-                # read the redis stream with key cache_key
-                message_raw = redis_client_api.xread(streams={cache_key: message_id}, count=1, block=1000)
-                if message_raw:
-                    message_id = message_raw[0][1][-1][0]
+    # Execute the suggestion
+    asyncio.get_running_loop().run_in_executor(None, lambda: completion_from_text(search, suggestion_key_req, user))
 
-                    try:
-                        message = message_raw[0][1][0][1][b"message"].decode("utf-8")
-                        logger.debug(f"Sending message: {message}")
-                        if message == REDIS_STREAM_STOPWORD:
-                            redis_client_api.delete(cache_key)
-                            break
-                        message_full += message
-                        yield message
-                    except Exception:
-                        logger.exception("Error decoding message", exc_info=True)
-            except asyncio.CancelledError:
-              logger.info(f"Disconnected from client (via refresh/close) {req.client}")
-              redis_client_api.delete(cache_key)
-              break
+    while True:
+        # If client closes connection, stop sending events
+        if await req.is_disconnected():
+            break
 
-        # Store the full message in the cache
-        redis_client_api.set(cache_key_cold, message_full, ex=GLOBAL_CACHE_TTL_SECS)
+        try:
+            # Read the redis stream with key cache_key
+            messages_raw = redis_client_api.xread(streams={suggestion_key_req: message_id}, block=1000)
+            for message_raw in messages_raw:
+                message_content = message_raw[1]
+                message_id = message_content[-1][0]
 
-    return EventSourceResponse(event_generator())
-
+                try:
+                    message = message_content[0][1][b"message"].decode("utf-8")
+                    if message == REDIS_STREAM_STOPWORD:
+                        # Delete the temporary cache key
+                        logger.debug(f"Deleting temporary cache key {suggestion_key_req}")
+                        redis_client_api.delete(suggestion_key_req)
+                        # Store the full message in the cache
+                        logger.debug(f"Storing full message in cache key {suggestion_key_static}")
+                        redis_client_api.set(suggestion_key_static, message_full, ex=GLOBAL_CACHE_TTL_SECS)
+                        break
+                    logger.debug(f"Sending message: {message}")
+                    message_full += message
+                    yield message
+                except Exception:
+                    logger.exception("Error decoding message", exc_info=True)
+        except asyncio.CancelledError:
+            logger.info(f"Disconnected from client (via refresh/close) {req.client}")
+            # Delete the temporary cache key
+            logger.debug(f"Deleting temporary cache key {suggestion_key_req}")
+            redis_client_api.delete(suggestion_key_req)
+            break
 
 @api.get(
     "/search",
@@ -339,12 +349,12 @@ async def search(
         answers=answers,
         query=query,
         stats=SearchStatsModel(time=(time.monotonic() - start), total=total),
-        suggestion_token=str_anonymization(f"{query}-{user.hex}-{limit}"),
+        suggestion_token=uuid4(),
     )
-    token_cache_key = f"token:{search.suggestion_token}"
+    token_key = await token_cache_key(search.suggestion_token)
 
     redis_client_api.set(search_cache_key, search.json(), ex=GLOBAL_CACHE_TTL_SECS)
-    redis_client_api.set(token_cache_key, search.json(), ex=SUGGESTION_TOKEN_TTL_SECS)
+    redis_client_api.set(token_key, search.json(), ex=SUGGESTION_TOKEN_TTL_SECS)
 
     return search
 
@@ -457,6 +467,7 @@ def completion_from_text(search: SearchModel, cache_key: str, user: UUID) -> str
             # add content to the redis stream cache_key
             redis_client_api.xadd(cache_key, {"message": content})
 
+    logger.debug(f"Completion result: {REDIS_STREAM_STOPWORD}")
     redis_client_api.xadd(cache_key, {"message": REDIS_STREAM_STOPWORD})
 
 
@@ -628,10 +639,12 @@ async def workshop_scrapping(
     if not url.startswith("http"):
         scrapping_url = f"https://microsoft.github.io/moaw/workshops/{url}workshop.md"
         return_url = URL(f"https://microsoft.github.io/moaw/workshop/{url}")
+        logger.debug(f"Using workshop Markdown file {scrapping_url}")
 
     res = await session.get(scrapping_url)
 
     if not return_url:
+        logger.debug(f"Override workshop URL for {res.url}")
         return_url = res.url
 
     return (await res.text(), return_url)
@@ -643,12 +656,20 @@ def str_anonymization(bytes: bytes) -> str:
 
     The anonymization is done using the MurmurHash3 algorithm (https://en.wikipedia.org/wiki/MurmurHash). MurmurHash has, as of time of writing, the best distribution of all non-cryptographic hash functions, which makes it a good candidate for anonymization.
     """
-    id_hash = mmh3.hash_bytes(bytes).hex()
-    return id_hash
+    str_hash = mmh3.hash_bytes(bytes).hex()
+    logger.debug(f"Anonymizing string {bytes} to {str_hash}")
+    return str_hash
 
 
-async def suggestion_key(str: str) -> str:
+async def suggestion_cache_key(str: str) -> str:
     """
     Returns the key to use to cache the suggestions for the given string.
     """
     return f"suggestion:{str}"
+
+
+async def token_cache_key(str: str) -> str:
+    """
+    Returns the key to use to cache the token for the given string.
+    """
+    return f"token:{str}"
