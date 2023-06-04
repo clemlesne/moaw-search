@@ -6,5 +6,6 @@ openai==0.27.7
 python-dotenv==1.0.0
 qdrant-client==1.1.7
 redis==4.5.5
+sse-starlette==1.6.1
 tenacity==8.2.2
 uvicorn==0.22.0
