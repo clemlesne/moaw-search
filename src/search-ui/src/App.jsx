@@ -28,40 +28,25 @@ function App() {
   useEffect(() => {
     if (!suggestionToken) return;
     setError(null);
+    setSuggestion(null);
     setSuggestionLoading(true);
 
-    const fetchSuggestion = async () => {
-      let job = {status: "in_progress"};
-      let i = 0;
-
-      while (true) {
-        await axios
-          .get(`http://127.0.0.1:8081/suggestion/${suggestionToken}`, {
-            timeout: 30000,
-            params: {
-              user: F,
-            },
-          })
-          .then((res) => {
-            job = res.data;
-          })
-          .catch((error) => {
-            setError({ code: error.code, message: error.message });
-            job = null;
-          });
-
-        if (!(job && job.status == "in_progress") || i++ > 60) {
-          break;
+    const fetch = async () => {
+      const source = new EventSource(`http://127.0.0.1:8081/suggestion/${suggestionToken}?user=${F}`);
+      let suggestion = "";
+      source.onmessage = (event) => {
+        suggestion += event.data;
+        setSuggestion(suggestion);
+      };
+      source.onerror = (event) => {
+        if (event.eventPhase === EventSource.CLOSED) {
+          setSuggestionLoading(false);
+          source.close();
         }
-
-        await delay(1000);
       }
-
-      job && setSuggestion(job.message);
-      setSuggestionLoading(false);
     };
 
-    fetchSuggestion();
+    fetch();
   }, [suggestionToken, F]);
 
   const fetchAnswers = async (value) => {
@@ -129,7 +114,5 @@ function App() {
     </>
   );
 }
-
-const delay = ms => new Promise(res => setTimeout(res, ms));
 
 export default App;

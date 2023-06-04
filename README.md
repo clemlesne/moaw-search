@@ -1,8 +1,8 @@
 # MOAW Search
 
 **Demo available at [moaw-search.shopping-cart-devops-demo.lesne.pro](https://moaw-search.shopping-cart-devops-demo.lesne.pro/).**
+MOAW Search is a search engine for the [MOAW](https://microsoft.github.io/moaw/) workshops. It use [OpenAI Embedding](https://platform.openai.com/docs/guides/embeddings) to find the most similar sentences to the query. Search queries can be asked in natural language. It uses [Qdrant to index the data](https://github.com/qdrant/qdrant) and [Redis to cache the results](https://github.com/redis/redis). Suggestions are streamed from remote to the client in real time [using server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events).
 
-MOAW Search is a search engine for the [MOAW](https://microsoft.github.io/moaw/) workshops. It use [OpenAI Embedding](https://platform.openai.com/docs/guides/embeddings) to find the most similar sentences to the query. Search queries can be asked in natural language. It uses [Qdrant to index the data](https://github.com/qdrant/qdrant) and [Redis to cache the results](https://github.com/redis/redis).
 
 OpenAI models used are:
 
@@ -138,6 +138,27 @@ sequenceDiagram
     API ->> PWA: Answer with the results
 
     User ->> PWA: See results
+
+    PWA ->> API: Ask for suggestions
+
+    alt No cache
+      par Generate suggestions
+        API ->> OpenAI: Ask for completion
+        loop Until completion is ready
+          OpenAI ->> API: Send partial completion
+          API ->> Cache: Store partial completion
+        end
+        API ->> Cache: Store full completion
+      and Send suggestions
+        loop Until completion is ready
+          API ->> Cache: Retrieve completion by batch
+          API ->> PWA: Send suggestions
+        end
+      end
+    else Cache is available
+      API ->> Cache: Retrieve full completion
+      API ->> PWA: Send suggestion
+    end
 ```
 
 ## [Authors](./AUTHORS.md)
