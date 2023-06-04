@@ -182,7 +182,7 @@ async def health_readiness_get() -> ReadinessModel:
     except Exception:
         logger.exception("Error connecting to the database", exc_info=True)
 
-    model = ReadinessModel(
+    readiness = ReadinessModel(
         status=ReadinessStatus.OK,
         checks=[
             ReadinessCheckModel(id="cache_database", status=cache_database_check),
@@ -192,12 +192,12 @@ async def health_readiness_get() -> ReadinessModel:
         ],
     )
 
-    for check in model.checks:
+    for check in readiness.checks:
         if check.status != ReadinessStatus.OK:
-            model.status = ReadinessStatus.FAIL
+            readiness.status = ReadinessStatus.FAIL
             break
 
-    return model
+    return readiness
 
 
 async def search_answer(query: str, limit: int, user: UUID) -> List[any]:
@@ -371,7 +371,7 @@ async def index_engine(user: UUID, force: bool = False) -> None:
 
         for workshop in workshops:
             identifier = workshop.get("id")
-            model = MetadataModel(
+            metadata = MetadataModel(
                 audience=workshop.get("audience"),
                 authors=workshop.get("authors"),
                 description=workshop.get("description"),
@@ -388,22 +388,22 @@ async def index_engine(user: UUID, force: bool = False) -> None:
                     if len(res) > 0:
                         stored = MetadataModel(**res[0].payload)
                         logger.info(stored.last_updated)
-                        logger.info(model.last_updated)
-                        if stored.last_updated == model.last_updated:
-                            logger.info(f'Workshop "{model.title}" already indexed')
+                        logger.info(metadata.last_updated)
+                        if stored.last_updated == metadata.last_updated:
+                            logger.info(f'Workshop "{metadata.title}" already indexed')
                             continue
                 except Exception:
                     logger.exception("Error searching for workshops", exc_info=True)
 
-            logger.info(f"Parsing workshop {model.title}...")
-            text = await embedding_text_from_metadata(model, session)
+            logger.info(f"Parsing workshop {metadata.title}...")
+            text = await embedding_text_from_metadata(metadata, session)
             logger.debug(f"Text: {text}")
             vector = await vector_from_text(text, user)
 
             # Create Qdrant payload
             vectors.append(vector)
             ids.append(identifier)
-            payloads.append(model.dict())
+            payloads.append(metadata.dict())
 
         if len(ids) == 0:
             logger.info("No new workshops to index")
@@ -475,7 +475,7 @@ async def is_moderated(prompt: str) -> bool:
     )
 
 
-def prompt_from_search(model: SearchModel) -> str:
+def prompt_from_search(search: SearchModel) -> str:
     prompt = textwrap.dedent(
         f"""
         You are a training consultant. You are working for Microsoft. You have 20 years' experience in the technology industry and have also worked as a life coach. Today, we are the {datetime.now()}.
@@ -510,7 +510,7 @@ def prompt_from_search(model: SearchModel) -> str:
     """
     )
 
-    for i, result in enumerate(model.answers):
+    for i, result in enumerate(search.answers):
         prompt += textwrap.dedent(
             f"""
             WORKSHOP START #{i}
@@ -548,19 +548,19 @@ def prompt_from_search(model: SearchModel) -> str:
 
 
 async def embedding_text_from_metadata(
-    model: MetadataModel, session: aiohttp.ClientSession
+    metadata: MetadataModel, session: aiohttp.ClientSession
 ) -> str:
-    description = await sanitize_for_embedding(model.description)
-    (content_raw, url) = await workshop_scrapping(model.url, session)
+    description = await sanitize_for_embedding(metadata.description)
+    (content_raw, url) = await workshop_scrapping(metadata.url, session)
     content_clean = (await sanitize_for_embedding(content_raw))[:7500]
 
     # Update model with the real URL
-    model.url = url.human_repr()
+    metadata.url = url.human_repr()
 
     return textwrap.dedent(
         f"""
         Title:
-        {model.title}
+        {metadata.title}
 
         Description:
         {description}
@@ -569,16 +569,16 @@ async def embedding_text_from_metadata(
         {content_clean}
 
         Tags:
-        {", ".join(model.tags)}
+        {", ".join(metadata.tags)}
 
         Authors:
-        {", ".join(model.authors)}
+        {", ".join(metadata.authors)}
 
         Audience:
-        {", ".join(model.audience)}
+        {", ".join(metadata.audience)}
 
         Last updated:
-        {model.last_updated}
+        {metadata.last_updated}
     """
     )
 
