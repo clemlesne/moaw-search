@@ -266,19 +266,29 @@ async def suggestion_sse_generator(req: Request, search: SearchModel, user: UUID
         return
 
     # Execute the suggestion
-    asyncio.get_running_loop().run_in_executor(None, lambda: completion_from_text(search, suggestion_key_req, user))
+    completion = asyncio.get_running_loop().run_in_executor(None, lambda: completion_from_text(search, suggestion_key_req, user))
 
-    is_end = False
+    def client_disconnect():
+        logger.info(f"Disconnected from client (via refresh/close) (req={req.client}, user={user})")
+        # Cancelling suggestion generation
+        logger.debug("Cancelling suggestion generation")
+        completion.cancel()
+        # Delete the temporary cache key
+        logger.debug("Deleting temporary cache key")
+        redis_client_api.delete(suggestion_key_req)
 
-    while True:
-        # If client closes connection, stop sending events
-        if await req.is_disconnected():
-            break
+    try:
+        is_end = False
 
-        if is_end:
-            break
+        while True:
+            # If client closes connection, stop sending events
+            if await req.is_disconnected():
+                client_disconnect()
+                break
 
-        try:
+            if is_end:
+                break
+
             # Read the redis stream with key cache_key
             messages_raw = redis_client_api.xread(streams={suggestion_key_req: message_id})
             message_loop = ""
@@ -303,14 +313,11 @@ async def suggestion_sse_generator(req: Request, search: SearchModel, user: UUID
                     logger.debug(f"Sending message: {message_loop}")
                     yield message_loop
 
-        except asyncio.CancelledError:
-            logger.info(f"Disconnected from client (via refresh/close) {req.client}")
-            # Delete the temporary cache key
-            logger.debug(f"Deleting temporary cache key {suggestion_key_req}")
-            redis_client_api.delete(suggestion_key_req)
-            break
+            await asyncio.sleep(0.5)
 
-        await asyncio.sleep(0.5)
+    except asyncio.CancelledError as e:
+        client_disconnect()
+        raise e
 
     # Delete the temporary cache key
     logger.debug(f"Deleting temporary cache key {suggestion_key_req}")
