@@ -27,6 +27,10 @@
     color: var(--color-active);
     text-decoration: none;
 
+    &:not(:disabled) {
+      cursor: pointer;
+    }
+
     &:hover {
       text-decoration: underline;
     }

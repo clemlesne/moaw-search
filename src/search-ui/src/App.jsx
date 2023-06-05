@@ -12,7 +12,7 @@ import useLocalStorageState from 'use-local-storage-state';
 const API_BASE_URL = "http://127.0.0.1:8081";
 
 function App() {
-  const [answers, setAnswers] = useState([]);
+  const [answers, setAnswers] = useState(null);
   const [answersLoading, setAnswersLoading] = useState(false);
   const [error, setError] = useState(null);
   const [F, setF] = useLocalStorageState("F", { defaultValue: null });
@@ -36,7 +36,7 @@ function App() {
     setSuggestion(null);
 
     // Close previous connection
-    suggestionLoading && suggestionLoading.close();
+    if (suggestionLoading) suggestionLoading.close();
 
     const fetch = async () => {
       // Open new connection
@@ -82,7 +82,7 @@ function App() {
           // Hardcoded error message ; functionally, this is due to a moderated query
           setError({ code: res.status, message: "No results" });
           // Reset UI
-          setAnswers([]);
+          setAnswers(null);
           setStats(null);
           setSuggestion(null);
         }
@@ -90,7 +90,7 @@ function App() {
       .catch((error) => {
         setError({ code: error.code, message: error.message });
         // Reset UI
-        setAnswers([]);
+        setAnswers(null);
         setStats(null);
         setSuggestion(null);
       })
@@ -104,9 +104,9 @@ function App() {
         {error && <Error code={error.code} message={error.message} />}
         {stats && <Stats total={stats.total} time={stats.time} />}
         {(suggestion || suggestionLoading) && (
-          <Suggestion message={suggestion} loading={suggestionLoading} />
+          <Suggestion message={suggestion} loading={suggestionLoading != null} />
         )}
-        {answers.map((answer) => (
+        {answers && answers.map((answer) => (
           <Result
             key={answer.id}
             metadata={answer.metadata}
