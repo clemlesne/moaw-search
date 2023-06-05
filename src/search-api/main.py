@@ -402,7 +402,7 @@ async def suggestion_sse_generator(req: Request, search: SearchModel, user: UUID
                     logger.debug(f"Sending message: {message_loop}")
                     yield message_loop
 
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.25)
 
     except asyncio.CancelledError as e:
         client_disconnect()
