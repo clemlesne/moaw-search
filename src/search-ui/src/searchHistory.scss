@@ -1,0 +1,32 @@
+.searchHistory {
+  display: flex;
+  flex-direction: column;
+  min-width: 40rem;
+  position: fixed;
+
+  background: var(--background);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  margin-top: .5rem;
+
+  @media (max-width: 1024px) {
+    min-width: unset;
+    left: 1rem;
+    right: 1rem;
+  }
+
+  a {
+    padding: .5rem 1rem;
+    color: inherit;
+
+    &:hover {
+      background-color: var(--background-muted);
+    }
+  }
+
+  p {
+    margin: .5rem 1rem;
+    font-size: .8rem;
+    color: var(--color-muted);
+  }
+}
