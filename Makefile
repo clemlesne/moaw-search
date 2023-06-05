@@ -17,6 +17,10 @@ test:
 	@make -C src/search-api test
 	@make -C src/search-ui test
 
+lint:
+	@make -C src/search-api lint
+	@make -C src/search-ui lint
+
 start:
 	docker-compose up -d
 
