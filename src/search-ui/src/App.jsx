@@ -9,6 +9,8 @@ import Stats from "./Stats";
 import Suggestion from "./Suggestion";
 import useLocalStorageState from 'use-local-storage-state';
 
+const API_BASE_URL = "http://127.0.0.1:8081";
+
 function App() {
   const [answers, setAnswers] = useState([]);
   const [answersLoading, setAnswersLoading] = useState(false);
@@ -16,7 +18,7 @@ function App() {
   const [F, setF] = useLocalStorageState("F", { defaultValue: null });
   const [stats, setStats] = useState(null);
   const [suggestion, setSuggestion] = useState(null);
-  const [suggestionLoading, setSuggestionLoading] = useState(false);
+  const [suggestionLoading, setSuggestionLoading] = useState(null);
   const [suggestionToken, setSuggestionToken] = useState(null);
 
   useEffect(() => {
@@ -27,20 +29,30 @@ function App() {
 
   useEffect(() => {
     if (!suggestionToken) return;
+    if (!F) return;
+
+    // Reset UI
     setError(null);
     setSuggestion(null);
-    setSuggestionLoading(true);
+
+    // Close previous connection
+    suggestionLoading && suggestionLoading.close();
 
     const fetch = async () => {
-      const source = new EventSource(`http://127.0.0.1:8081/suggestion/${suggestionToken}?user=${F}`);
+      // Open new connection
+      const source = new EventSource(`${API_BASE_URL}/suggestion/${suggestionToken}?user=${F}`);
+      // Store the connection to be able to close it later
+      setSuggestionLoading(source);
+
       let suggestion = "";
       source.onmessage = (event) => {
         suggestion += event.data;
         setSuggestion(suggestion);
       };
+
       source.onerror = (event) => {
         if (event.eventPhase === EventSource.CLOSED) {
-          setSuggestionLoading(false);
+          setSuggestionLoading(null);
           source.close();
         }
       }
@@ -53,7 +65,7 @@ function App() {
     setAnswersLoading(true);
     setError(null);
     await axios
-      .get("http://127.0.0.1:8081/search", {
+      .get(`${API_BASE_URL}/search`, {
         params: {
           limit: 10,
           query: value,
@@ -67,7 +79,9 @@ function App() {
           setStats(res.data.stats);
           setSuggestionToken(res.data.suggestion_token);
         } else {
+          // Hardcoded error message ; functionally, this is due to a moderated query
           setError({ code: res.status, message: "No results" });
+          // Reset UI
           setAnswers([]);
           setStats(null);
           setSuggestion(null);
@@ -75,6 +89,7 @@ function App() {
       })
       .catch((error) => {
         setError({ code: error.code, message: error.message });
+        // Reset UI
         setAnswers([]);
         setStats(null);
         setSuggestion(null);
