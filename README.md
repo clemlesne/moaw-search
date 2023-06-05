@@ -16,6 +16,19 @@ OpenAI models used are:
 
 ### Run locally
 
+Create a local configuration file:
+
+```bash
+# .env
+MS_ACS_API_BASE=https://[resource_name].cognitiveservices.azure.com
+MS_ACS_API_TOKEN=[service_token]
+MS_LOGGING_APP_LEVEL=DEBUG
+MS_OAI_ADA_DEPLOY_ID=[deployment_name]
+MS_OAI_GPT_DEPLOY_ID=[deployment_name]
+MS_REDIS_DB=0
+OPENAI_API_BASE=https://[resource_name].openai.azure.com
+```
+
 This will build locally the container, start them, and display the logs:
 
 ```bash
