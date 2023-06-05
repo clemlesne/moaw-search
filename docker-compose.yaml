@@ -17,8 +17,8 @@ services:
   search-api:
     image: ghcr.io/clemlesne/moaw-search/search-api:latest
     environment:
-      QD_HOST: qdrant
-      REDIS_HOST: redis
+      MS_QD_HOST: qdrant
+      MS_REDIS_HOST: redis
     networks:
       - moaw-search
     ports:

@@ -1,0 +1,13 @@
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "moaw-search.fullname" . }}
+spec:
+  egress:
+    - action: Allow
+  ingress:
+    - action: Allow
+  selector: all()
+  types:
+    - Egress
+    - Ingress

@@ -1,5 +1,6 @@
 # Init environment variables
 from dotenv import load_dotenv, find_dotenv
+
 load_dotenv(find_dotenv())
 
 
@@ -7,11 +8,26 @@ load_dotenv(find_dotenv())
 from apscheduler.jobstores.redis import RedisJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+import azure.ai.contentsafety as azure_cs
+from azure.core.credentials import AzureKeyCredential
+from azure.identity import DefaultAzureCredential
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, Query, BackgroundTasks, status, Response, Request
+from fastapi import (
+    FastAPI,
+    HTTPException,
+    Query,
+    BackgroundTasks,
+    status,
+    Response,
+    Request,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from models.metadata import MetadataModel
-from models.readiness import ReadinessModel, ReadinessCheckModel, Status as ReadinessStatus
+from models.readiness import (
+    ReadinessModel,
+    ReadinessCheckModel,
+    Status as ReadinessStatus,
+)
 from models.search import SearchAnswerModel, SearchStatsModel, SearchModel
 from qdrant_client import QdrantClient
 from redis import Redis
@@ -22,6 +38,7 @@ from uuid import uuid4, UUID
 from yarl import URL
 import aiohttp
 import asyncio
+import azure.core.exceptions as azure_exceptions
 import html
 import logging
 import mmh3
@@ -33,18 +50,64 @@ import textwrap
 import time
 
 
-VERSION = os.getenv("VERSION")
+###
+# Init misc
+###
+
+VERSION = os.environ.get("VERSION")
+
+###
 # Init logging
-LOGGING_LEVEL = os.getenv("LOGGING_LEVEL") or logging.INFO
-logging.basicConfig(level=LOGGING_LEVEL)
+###
+
+LOGGING_SYS_LEVEL = os.environ.get("MS_LOGGING_SYS_LEVEL", logging.WARN)
+logging.basicConfig(level=LOGGING_SYS_LEVEL)
+
+LOGGING_APP_LEVEL = os.environ.get("MS_LOGGING_APP_LEVEL", logging.INFO)
 logger = logging.getLogger(__name__)
+logger.setLevel(LOGGING_APP_LEVEL)
+
+###
 # Init OpenAI
-OAI_EMBEDDING_MODEL = "text-embedding-ada-002"
-OAI_COMPLETION_MODEL = "gpt-3.5-turbo"
-OAI_MODERATION_MODEL = "text-moderation-stable"
+###
+
+OAI_EMBEDDING_ARGS = {
+    "deployment_id": os.environ.get("MS_OAI_ADA_DEPLOY_ID"),
+    "model": "text-embedding-ada-002",
+}
+OAI_COMPLETION_ARGS = {
+    "deployment_id": os.environ.get("MS_OAI_GPT_DEPLOY_ID"),
+    "model": "gpt-3.5-turbo",
+}
+
+logger.info(f"(OpenAI) Using Aure private service ({openai.api_base})")
+openai.api_type = "azure_ad"
+openai.api_version = "2023-05-15"
+oai_cred = DefaultAzureCredential()
+oai_token = oai_cred.get_token("https://cognitiveservices.azure.com/.default")
+openai.api_key = oai_token.token
+
+###
+# Init Azure Content Safety
+###
+
+# Score are following: 0 - Safe, 2 - Low, 4 - Medium, 6 - High
+# See: https://review.learn.microsoft.com/en-us/azure/cognitive-services/content-safety/concepts/harm-categories?branch=release-build-content-safety#severity-levels
+ACS_SEVERITY_THRESHOLD = 2
+ACS_API_BASE = os.environ.get("MS_ACS_API_BASE")
+ACS_API_TOKEN = os.environ.get("MS_ACS_API_TOKEN")
+logger.info(f"(Azure Content Safety) Using Aure private service ({ACS_API_BASE})")
+acs_client = azure_cs.ContentSafetyClient(
+    ACS_API_BASE, AzureKeyCredential(ACS_API_TOKEN)
+)
+
+###
 # Init FastAPI
-ROOT_PATH = os.getenv("ROOT_PATH")
-logger.info(f"Using root path: \"{ROOT_PATH}\"")
+###
+
+ROOT_PATH = os.environ.get("MS_ROOT_PATH", "")
+logger.info(f'Using root path: "{ROOT_PATH}"')
+
 api = FastAPI(
     contact={
         "url": "https://github.com/clemlesne/moaw-search",
@@ -58,27 +121,26 @@ api = FastAPI(
     title="search-api",
     version=VERSION,
 )
+
+# Setup CORS
+api.add_middleware(
+    CORSMiddleware,
+    allow_headers=["*"],
+    allow_methods=["*"],
+    allow_origins=["*"],
+)
+
+###
 # Init Qdrant
+###
+
 QD_COLLECTION = "moaw"
 QD_DIMENSION = 1536
-QD_HOST = os.getenv("QD_HOST")
 QD_METRIC = qmodels.Distance.DOT
+QD_HOST = os.environ.get("MS_QD_HOST")
 qd_client = QdrantClient(host=QD_HOST, port=6333)
-# Init Redis
-GLOBAL_CACHE_TTL_SECS = 60 * 60  # 1 hour
-SUGGESTION_TOKEN_TTL_SECS = 60 * 10  # 10 minutes
-REDIS_HOST = os.getenv("REDIS_HOST")
-REDIS_PORT = 6379
-REDIS_STREAM_STOPWORD = "STOP"
-redis_client_api = Redis(db=0, host=REDIS_HOST, port=REDIS_PORT)
-# Init scheduler
-scheduler_client = RedisJobStore(db=1, host=REDIS_HOST, port=REDIS_PORT)
 
-# Ensure OpenAI API key is set
-if not openai.api_key:
-    raise Exception("OpenAI API key (OPENAI_API_KEY) is not set")
-
-# Ensure Qdrant collection exists
+# Ensure collection exists
 try:
     qd_client.get_collection(QD_COLLECTION)
 except Exception:
@@ -90,13 +152,22 @@ except Exception:
         ),
     )
 
-# Setup CORS
-api.add_middleware(
-    CORSMiddleware,
-    allow_headers=["*"],
-    allow_methods=["*"],
-    allow_origins=["*"],
-)
+###
+# Init Redis
+###
+
+GLOBAL_CACHE_TTL_SECS = 60 * 60  # 1 hour
+SUGGESTION_TOKEN_TTL_SECS = 60 * 10  # 10 minutes
+REDIS_HOST = os.environ.get("MS_REDIS_HOST")
+REDIS_PORT = 6379
+REDIS_STREAM_STOPWORD = "STOP"
+redis_client_api = Redis(db=0, host=REDIS_HOST, port=REDIS_PORT)
+
+###
+# Init scheduler
+###
+
+scheduler_client = RedisJobStore(db=1, host=REDIS_HOST, port=REDIS_PORT)
 
 
 @api.on_event("startup")
@@ -144,7 +215,9 @@ async def health_readiness_get() -> ReadinessModel:
         assert None == scheduler_client.redis.get(key)
         cache_scheduler_check = ReadinessStatus.OK
     except Exception:
-        logger.exception("Error connecting to the scheduler cache database", exc_info=True)
+        logger.exception(
+            "Error connecting to the scheduler cache database", exc_info=True
+        )
 
     # Test the database cache with a transaction (insert, read, delete)
     cache_database_check = ReadinessStatus.FAIL
@@ -157,14 +230,16 @@ async def health_readiness_get() -> ReadinessModel:
         assert None == redis_client_api.get(key)
         cache_database_check = ReadinessStatus.OK
     except Exception:
-        logger.exception("Error connecting to the database cache database", exc_info=True)
+        logger.exception(
+            "Error connecting to the database cache database", exc_info=True
+        )
 
     # Test database with a transaction (insert, read, delete)
     database_check = ReadinessStatus.FAIL
     try:
         identifier = str(uuid4())
         payload = {"test": "test"}
-        vector = [.0] * QD_DIMENSION
+        vector = [0.0] * QD_DIMENSION
         qd_client.upsert(
             collection_name=QD_COLLECTION,
             points=qmodels.Batch(
@@ -173,7 +248,12 @@ async def health_readiness_get() -> ReadinessModel:
                 vectors=[vector],
             ),
         )
-        assert "test" == qd_client.retrieve(collection_name=QD_COLLECTION, ids=[identifier])[0].payload["test"]
+        assert (
+            "test"
+            == qd_client.retrieve(collection_name=QD_COLLECTION, ids=[identifier])[
+                0
+            ].payload["test"]
+        )
         qd_client.delete(collection_name=QD_COLLECTION, points_selector=[identifier])
         try:
             qd_client.retrieve(collection_name=QD_COLLECTION, ids=[identifier])[0]
@@ -213,6 +293,9 @@ async def search_answer(query: str, limit: int, user: UUID) -> List[any]:
         ),
         user,
     )
+
+    if not vector:
+        return []
 
     search_params = qmodels.SearchParams(hnsw_ef=128, exact=False)
 
@@ -266,10 +349,14 @@ async def suggestion_sse_generator(req: Request, search: SearchModel, user: UUID
         return
 
     # Execute the suggestion
-    completion = asyncio.get_running_loop().run_in_executor(None, lambda: completion_from_text(search, suggestion_key_req, user))
+    completion = asyncio.get_running_loop().run_in_executor(
+        None, lambda: completion_from_text(search, suggestion_key_req, user)
+    )
 
     def client_disconnect():
-        logger.info(f"Disconnected from client (via refresh/close) (req={req.client}, user={user})")
+        logger.info(
+            f"Disconnected from client (via refresh/close) (req={req.client}, user={user})"
+        )
         # Cancelling suggestion generation
         logger.debug("Cancelling suggestion generation")
         completion.cancel()
@@ -290,7 +377,9 @@ async def suggestion_sse_generator(req: Request, search: SearchModel, user: UUID
                 break
 
             # Read the redis stream with key cache_key
-            messages_raw = redis_client_api.xread(streams={suggestion_key_req: message_id})
+            messages_raw = redis_client_api.xread(
+                streams={suggestion_key_req: message_id}
+            )
             message_loop = ""
 
             if messages_raw:
@@ -325,6 +414,7 @@ async def suggestion_sse_generator(req: Request, search: SearchModel, user: UUID
     # Store the full message in the cache
     logger.debug(f"Storing full message in cache key {suggestion_key_static}")
     redis_client_api.set(suggestion_key_static, message_full, ex=GLOBAL_CACHE_TTL_SECS)
+
 
 @api.get(
     "/search",
@@ -418,7 +508,9 @@ async def index_engine(user: UUID, force: bool = False) -> None:
 
             if not force:
                 try:
-                    res = qd_client.retrieve(collection_name=QD_COLLECTION, ids=[identifier])
+                    res = qd_client.retrieve(
+                        collection_name=QD_COLLECTION, ids=[identifier]
+                    )
                     if len(res) > 0:
                         stored = MetadataModel(**res[0].payload)
                         logger.info(stored.last_updated)
@@ -460,31 +552,42 @@ async def index_engine(user: UUID, force: bool = False) -> None:
 async def vector_from_text(prompt: str, user: UUID) -> List[float]:
     logger.debug(f"Getting vector for text: {prompt}")
     user_hash = str_anonymization(user.bytes)
-    res = openai.Embedding.create(
-        input=prompt,
-        model=OAI_EMBEDDING_MODEL,
-        user=user_hash,  # Unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
-    )
+    try:
+        res = openai.Embedding.create(
+            **OAI_EMBEDDING_ARGS,
+            input=prompt,
+            user=user_hash,  # Unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
+        )
+    except openai.error.AuthenticationError as e:
+        logger.exception(e)
+        return []
+
     return res.data[0].embedding
 
 
 @retry(stop=stop_after_attempt(3))
-def completion_from_text(search: SearchModel, cache_key: str, user: UUID) -> str:
+def completion_from_text(search: SearchModel, cache_key: str, user: UUID) -> None:
     logger.debug(f"Getting completion for text: {search.query}")
     training = prompt_from_search(search)
     user_hash = str_anonymization(user.bytes)
 
-    # Use chat completion to get a more natural response and lower the usage cost
-    for chunk in openai.ChatCompletion.create(
-        messages=[
-            {"role": "system", "content": training},
-            {"role": "user", "content": search.query},
-        ],
-        model=OAI_COMPLETION_MODEL,
-        presence_penalty=1,  # Increase the model's likelihood to talk about new topics
-        stream=True,
-        user=user_hash,  # Unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
-    ):
+    try:
+        # Use chat completion to get a more natural response and lower the usage cost
+        chunks = openai.ChatCompletion.create(
+            **OAI_COMPLETION_ARGS,
+            messages=[
+                {"role": "system", "content": training},
+                {"role": "user", "content": search.query},
+            ],
+            presence_penalty=1,  # Increase the model's likelihood to talk about new topics
+            stream=True,
+            user=user_hash,  # Unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
+        )
+    except openai.error.AuthenticationError as e:
+        logger.exception(e)
+        return
+
+    for chunk in chunks:
         content = chunk["choices"][0].get("delta", {}).get("content")
         if content is not None:
             logger.debug(f"Completion result: {content}")
@@ -498,15 +601,32 @@ def completion_from_text(search: SearchModel, cache_key: str, user: UUID) -> str
 @retry(stop=stop_after_attempt(3))
 async def is_moderated(prompt: str) -> bool:
     logger.debug(f"Checking moderation for text: {prompt}")
-    res = openai.Moderation.create(
-        input=prompt,
-        model=OAI_MODERATION_MODEL,
+
+    req = azure_cs.models.AnalyzeTextOptions(
+        text=prompt,
+        categories=[
+            azure_cs.models.TextCategory.HATE,
+            azure_cs.models.TextCategory.SELF_HARM,
+            azure_cs.models.TextCategory.SEXUAL,
+            azure_cs.models.TextCategory.VIOLENCE,
+        ],
     )
+
+    try:
+        res = acs_client.analyze_text(req)
+    except azure_exceptions.ClientAuthenticationError as e:
+        logger.exception(e)
+        return False
+
     logger.debug(f"Moderation result: {res}")
-    return (
-        res.results[0].flagged
-        or all(flag == True for name, flag in res.results[0].categories.items())
-        or all(score > .3 for name, score in res.results[0].category_scores.items())
+    return any(
+        cat.severity >= ACS_SEVERITY_THRESHOLD
+        for cat in [
+            res.hate_result,
+            res.self_harm_result,
+            res.sexual_result,
+            res.violence_result,
+        ]
     )
 
 

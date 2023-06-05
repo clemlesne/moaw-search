@@ -1,8 +1,8 @@
 # MOAW Search
 
 **Demo available at [moaw-search.shopping-cart-devops-demo.lesne.pro](https://moaw-search.shopping-cart-devops-demo.lesne.pro/).**
-MOAW Search is a search engine for the [MOAW](https://microsoft.github.io/moaw/) workshops. It use [OpenAI Embedding](https://platform.openai.com/docs/guides/embeddings) to find the most similar sentences to the query. Search queries can be asked in natural language. It uses [Qdrant to index the data](https://github.com/qdrant/qdrant) and [Redis to cache the results](https://github.com/redis/redis). Suggestions are streamed from remote to the client in real time [using server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events).
 
+MOAW Search is a search engine for the [MOAW](https://microsoft.github.io/moaw/) workshops. It use [Embeddings](https://platform.openai.com/docs/guides/embeddings) to find the most similar sentences to the query. Either hosted on [Azure Cognitive Services](https://learn.microsoft.com/en-us/azure/cognitive-services/what-are-cognitive-services) or [Azure Kubernetes Services (AKS)](https://learn.microsoft.com/en-us/azure/aks/intro-kubernetes). Search queries can be asked in natural language. It uses [Qdrant to index the data](https://github.com/qdrant/qdrant) and [Redis to cache the results](https://github.com/redis/redis). Suggestions are streamed from remote to the client in real time [using server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events).
 
 OpenAI models used are:
 
@@ -15,6 +15,19 @@ OpenAI models used are:
 ## How to use
 
 ### Run locally
+
+Create a local configuration file:
+
+```bash
+# .env
+MS_ACS_API_BASE=https://[resource_name].cognitiveservices.azure.com
+MS_ACS_API_TOKEN=[service_token]
+MS_LOGGING_APP_LEVEL=DEBUG
+MS_OAI_ADA_DEPLOY_ID=[deployment_name]
+MS_OAI_GPT_DEPLOY_ID=[deployment_name]
+MS_REDIS_DB=0
+OPENAI_API_BASE=https://[resource_name].openai.azure.com
+```
 
 This will build locally the container, start them, and display the logs:
 
@@ -88,15 +101,15 @@ graph
   redis[("Redis\n(memory)")]
   ui["Search UI\n(PWA)"]
 
-  subgraph "OpenAI"
+  subgraph "Azure OpenAI services"
     oai_ada["ADA embedding"]
     oai_gpt["GPT completions"]
-    oai_modr["Moderation"]
+    safety["Content Safety"]
   end
 
   api -- Cache entities --> redis
   api -- Generate completions --> oai_gpt
-  api -- Test moderation --> oai_modr
+  api -- Test moderation --> safety
   api -- Generate embeddings --> oai_ada
   api -- Index data every hour --> moaw
   api -- Search for similarities, index vectors --> qdrant
@@ -117,18 +130,18 @@ sequenceDiagram
     participant API
     participant Database
     participant Cache
-    participant OpenAI
+    participant Azure OpenAI
 
     User ->> PWA: Fill text
     PWA ->> API: Get answers
     API ->> Cache: Test if there is a cached response
 
     alt No cache
-        API ->> OpenAI: Test for moderation
+        API ->> Azure OpenAI: Test for moderation
         alt Moderated
           API ->> PWA: Answer with no content
         end
-        API ->> OpenAI: Generate embedding
+        API ->> Azure OpenAI: Generate embedding
         API ->> Database: Search for vector similarities
         API ->> Cache: Store results
     end
@@ -143,9 +156,9 @@ sequenceDiagram
 
     alt No cache
       par Generate suggestions
-        API ->> OpenAI: Ask for completion
+        API ->> Azure OpenAI: Ask for completion
         loop Until completion is ready
-          OpenAI ->> API: Send partial completion
+          Azure OpenAI ->> API: Send partial completion
           API ->> Cache: Store partial completion
         end
         API ->> Cache: Store full completion

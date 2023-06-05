@@ -15,9 +15,11 @@ spec:
       labels:
         {{- include "moaw-search.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: search-api
+        azure.workload.identity/use: "true"
       annotations:
         checksum/secret: {{ include (print $.Template.BasePath "/search-api-secret.yaml") . | sha256sum }}
     spec:
+      serviceAccountName: {{ .Values.serviceAccountName | required "A value for .Values.serviceAccountName is required" }}
       containers:
         - name: search-api
           image: "ghcr.io/clemlesne/moaw-search/search-api:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -26,7 +28,7 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
-          resources: {{- toYaml .Values.resources | nindent 12 }}
+          resources: {{- toYaml .Values.resources | nindent 12 | required "A value for .Values.resources is required" }}
           livenessProbe:
             periodSeconds: 5
             timeoutSeconds: 5
@@ -45,14 +47,26 @@ spec:
             tcpSocket:
               port: http
           env:
-            - name: ROOT_PATH
+            - name: MS_ROOT_PATH
               value: /{{ include "moaw-search.fullname" . }}-search-api
-            - name: OPENAI_API_KEY
+            - name: MS_ACS_API_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ include "moaw-search.fullname" . }}-search-api
-                  key: openaiKey
-            - name: REDIS_HOST
+                  key: MS_ACS_API_TOKEN
+            - name: MS_ACS_API_BASE
+              value: "https://{{ .Values.api.acs.base | required "A value for .Values.api.acs.base is required" }}"
+            - name: MS_LOGGING_APP_LEVEL
+              value: {{ .Values.api.logging.app | required "A value for .Values.api.logging.app is required" }}
+            - name: MS_LOGGING_SYS_LEVEL
+              value: {{ .Values.api.logging.sys | required "A value for .Values.api.logging.sys is required" }}
+            - name: MS_OAI_ADA_DEPLOY_ID
+              value: {{ .Values.api.oai.ada_deploy_id | required "A value for .Values.api.oai.ada_deploy_id is required" }}
+            - name: MS_OAI_GPT_DEPLOY_ID
+              value: {{ .Values.api.oai.gpt_deploy_id | required "A value for .Values.api.oai.gpt_deploy_id is required" }}
+            - name: OPENAI_API_BASE
+              value: "https://{{ .Values.api.oai.base | required "A value for .Values.api.oai.base is required" }}"
+            - name: MS_REDIS_HOST
               value: {{ include "common.names.fullname" .Subcharts.redis }}-master
-            - name: QD_HOST
+            - name: MS_QD_HOST
               value: {{ include "qdrant.fullname" .Subcharts.qdrant }}
