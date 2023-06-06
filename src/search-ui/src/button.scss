@@ -2,18 +2,22 @@ button {
   align-items: center;
   background: var(--background);
   border-radius: var(--radius);
-  border: 1px solid var(--border);
   display: flex;
   flex-direction: row;
   flex-shrink: 0;
   padding: .5rem 1rem;
 
+  &,
+  &:disabled {
+    color: var(--color);
+  }
+
+  &:disabled {
+    opacity: .75;
+  }
+
   &:not(:disabled) {
     cursor: pointer;
-
-    &:hover {
-      background-color: var(--background-muted);
-    }
 
     &:active,
     &:focus {
