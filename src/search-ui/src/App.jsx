@@ -1,5 +1,5 @@
 import "./app.scss";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import Error from "./Error";
 import FingerprintJS from "@fingerprintjs/fingerprintjs";
@@ -21,11 +21,11 @@ function App() {
   const [suggestionLoading, setSuggestionLoading] = useState(null);
   const [suggestionToken, setSuggestionToken] = useState(null);
 
-  useEffect(() => {
+  useMemo(() => {
     FingerprintJS.load()
       .then((fp) => fp.get())
       .then((res) => setF(res.visitorId));
-  });
+  }, []);
 
   useEffect(() => {
     if (!suggestionToken) return;
@@ -100,7 +100,7 @@ function App() {
   return (
     <>
       <SearchBar fetchAnswers={fetchAnswers} loading={answersLoading} />
-      <div className={`results ${answersLoading && "results--answersLoading"}`}>
+      <div className={`results ${answersLoading ? "results--answersLoading" : undefined}`}>
         {error && <Error code={error.code} message={error.message} />}
         {stats && <Stats total={stats.total} time={stats.time} />}
         {(suggestion || suggestionLoading) && (

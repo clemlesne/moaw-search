@@ -1,11 +1,14 @@
 import "./searchHistory.scss";
 import PropTypes from "prop-types";
 
-function SearchHistory({ history, setValue }) {
+function SearchHistory({ historyLoaded, fetch, historySelected, setHistorySelected, deleteFromHistory }) {
   return (
     <div className="searchHistory">
-      {history.map((item) => (
-        <a key={item.id} onMouseDown={() => setValue(item.document.search)}>{item.document.search}</a>
+      {historyLoaded.map((item, i) => (
+        <span key={item.id} onMouseEnter={() => setHistorySelected(i)} className={historySelected == i ? "active" : undefined}>
+          <a className="searchHistory__item__content" onMouseDown={() => fetch(item.document.search)}>{item.document.search}</a>
+          <a className="searchHistory__item__delete" onMouseDown={(e) => deleteFromHistory(i) && e.preventDefault()}>🗑️</a>
+        </span>
       ))}
       <p>Search history is private and locally stored.</p>
     </div>
@@ -13,8 +16,11 @@ function SearchHistory({ history, setValue }) {
 }
 
 SearchHistory.propTypes = {
-  history: PropTypes.array.isRequired,
-  setValue: PropTypes.func.isRequired,
+  deleteFromHistory: PropTypes.func.isRequired,
+  fetch: PropTypes.func.isRequired,
+  historyLoaded: PropTypes.array.isRequired,
+  historySelected: PropTypes.number,
+  setHistorySelected: PropTypes.func.isRequired,
 }
 
 export default SearchHistory

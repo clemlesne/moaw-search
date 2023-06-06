@@ -19,8 +19,13 @@
     padding: .5rem 1rem;
     color: inherit;
 
-    &:hover {
+    &.active {
       background-color: var(--background-muted);
+      text-decoration: underline;
+    }
+
+    &:not(.active):hover {
+      text-decoration: unset;
     }
   }
 

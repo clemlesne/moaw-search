@@ -1,31 +1,147 @@
 import "./searchBar.scss";
 import { create, insert, search, save, load, remove } from "@orama/orama";
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import Button from "./Button";
 import PropTypes from "prop-types"
 import useLocalStorageState from "use-local-storage-state";
 import SearchHistory from "./SearchHistory";
 
 function SearchBar({ fetchAnswers, loading }) {
+  const SEARCH_LIMIT = 5;
+
   const [historyDb, setHistoryDb] = useState(null);
-  const [historyLoaded, setHistoryLoaded] = useState(null);
   const [historyEnabled, setHistoryEnabled] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(null);
   const [historyPersistance, setHistoryPersistance] = useLocalStorageState("historyPersistance", { defaultValue: null });
+  const [historySelected, setHistorySelected] = useState(null);
   const [lastValue, setLastValue] = useState("");
   const [value, setValue] = useLocalStorageState("value", { defaultValue: "" });
 
-  useEffect(() => {
+  const executeSearch = async (value) => {
+    // First, persit the value
+    setValue(value);
+
+    if (!historyDb) return;
+
+    let res = null;
+    if (!value) {  // If the value is empty, display the last searches
+      res = await search(historyDb, {
+        limit: SEARCH_LIMIT,
+        sortBy: {
+          order: "DESC",
+          property: "date",
+        },
+      });
+    } else {  // If the value is not empty, display the most relevant searches
+      res = await search(historyDb, {
+        limit: SEARCH_LIMIT,
+        properties: ["search"],
+        term: value,
+        tolerance: 5,
+      });
+    }
+
+    setHistoryLoaded(res.hits);
+
+    // Display the history after the results are loaded
+    setHistoryEnabled(true);
+  };
+
+  // Fetch the answers
+  const fetch = async (value) => {
+    // Disable the history ; do it first to have a better UX
+    setHistoryEnabled(false);
+    setHistorySelected(null);
+
+    // First, persit the value
+    setValue(value);
+
+    // Execute search only if the value has changed
+    if(value != lastValue) {
+      // In case the user clicks again on the search button
+      setLastValue(value);
+
+      // Cancel the search if the value is empty
+      if (!value) return;
+      fetchAnswers(value);
+
+      // Cancel the save if the value is empty
+      if (!historyDb) return;
+
+      // Search for duplicates
+      const res = await search(historyDb, {
+        exact: true,
+        properties: ["search"],
+        term: value,
+      });
+
+      // Confirm that the duplicates is well in the history
+      const obj = res.hits[0];
+      if (res.hits.length > 0 && obj.document.search == value) {
+        await remove(historyDb, obj.id);
+      }
+
+      // Insert the new search
+      await insert(historyDb, {
+        date: Date.now(),
+        search: value,
+      });
+    }
+  };
+
+  // Handle the keyboard events
+  const onKeyDown = async (e) => {
+    switch (e.key) {
+      case "Escape":
+        setHistoryEnabled(false);
+        break;
+
+      case "ArrowDown":
+        setHistoryEnabled(true);
+        setHistorySelected(historySelected < (historyLoaded.length - 1) ? historySelected + 1 : 0);
+        e.preventDefault();
+        break;
+
+      case "ArrowUp":
+        setHistoryEnabled(true);
+        setHistorySelected(historySelected > 0 ? historySelected - 1 : (historyLoaded.length - 1));
+        e.preventDefault();
+        break;
+
+      case "Enter":
+        // If the user hasn't selected a history, fetch the value ; else, fetch the history
+        fetch((!historySelected) ? e.target.value : historyLoaded[historySelected].document.search)
+        e.preventDefault();
+        break;
+
+      default:
+        setHistorySelected(null);
+        break;
+    }
+  };
+
+  const deleteFromHistory = async (i) => {
+    await remove(historyDb, historyLoaded[i].id);
+    executeSearch(value);
+  };
+
+  // Load the history database
+  useMemo(() => {
     const loadOrCreate = async () => {
       const db = await create({
         schema: {
           search: "string",
           date: "number",
         },
+        // Stemming is a technique that reduces words to their root form
+        // See: https://docs.oramasearch.com/text-analysis/stemming
+        language: 'english',
         components: {
+          // Save the database after each insert
           afterInsert: async (db) => {
             const cold = await save(db);
             setHistoryPersistance(cold);
-          }
+          },
         },
       });
 
@@ -39,82 +155,25 @@ function SearchBar({ fetchAnswers, loading }) {
     loadOrCreate();
   }, []);
 
-  useEffect(() => {
-    if (!historyDb) return;
-    if (!value) return;
-
-    const executeSearch = async () => {
-      const res = await search(historyDb, {
-        limit: 10,
-        properties: ["search"],
-        term: value,
-        tolerance: 5,
-        sortBy: {
-          order: "DESC",
-          property: "date",
-        }
-      });
-
-      console.log(res.hits);
-      setHistoryLoaded(res.hits);
-    };
-
-    executeSearch();
-  }, [value]);
-
-  const fetch = (value) => {
-    const persistHistory = async () => {
-      if (!historyDb) return;
-
-      const res = await search(historyDb, {
-        exact: true,
-        properties: ["search"],
-        term: value,
-      });
-
-      if (res.hits.length > 0 && res.hits[0].document.search == value) {
-        console.log("Remove", res.hits[0].id);
-        await remove(historyDb, res.hits[0].id);
-      }
-
-      await insert(historyDb, {
-        date: Date.now(),
-        search: value,
-      });
-    };
-
-    // Execute search only if the value has changed
-    if(value != lastValue) {
-      persistHistory();
-      fetchAnswers(value);
-    }
-
-    // In case the user clicks again on the search button
-    setLastValue(value);
-  };
-
   return (
     <div className="searchBar">
       <h1><span>🐱</span> <span>MOAW Search</span></h1>
       <span>
         <input
-          name="search"
           autoComplete="off"
-          size="1"
           maxLength="200"
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => (value.length > 0 && e.key === "Enter") && fetch(value)}
-          onFocus={() => setHistoryEnabled(true)}
-          onBlur={() => {
-            setHistoryEnabled(false);
-            // Force the search to be executed when the user clicks outside the search bar
-            if (value.length > 0 && !loading) fetch(value);
-          }}
+          name="search"
+          onBlur={(e) => fetch(e.target.value)}
+          onChange={(e) => executeSearch(e.target.value)}
+          onClick={() => setHistoryEnabled(true)}
+          onFocus={(e) => executeSearch(e.target.value)}
+          onKeyDown={(e) => onKeyDown(e)}
           placeholder="Search accross workshops..."
+          size="1"
           type="search"
           value={value}
         />
-        {(historyEnabled && historyLoaded && historyLoaded.length > 0) && <SearchHistory history={historyLoaded} setValue={setValue} />}
+        {(historyEnabled && historyLoaded) && <SearchHistory historyLoaded={historyLoaded} historySelected={historySelected} setHistorySelected={setHistorySelected} fetch={fetch} deleteFromHistory={deleteFromHistory} />}
       </span>
       <Button
         disabled={value.length == 0}
