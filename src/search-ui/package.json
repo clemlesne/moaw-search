@@ -4,13 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "lint": "eslint src --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
   "dependencies": {
     "@fingerprintjs/fingerprintjs": "^3.4.1",
+    "@orama/orama": "^1.0.3",
     "autoprefixer": "^10.4.14",
     "axios": "^1.4.0",
     "moment": "^2.29.4",

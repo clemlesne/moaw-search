@@ -1,0 +1,51 @@
+.searchHistory {
+  backdrop-filter: blur(25vw) contrast(.75);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  margin-top: .5rem;
+  max-height: 50vh;
+  min-width: 40rem;
+  overflow: auto;
+  position: fixed;
+
+  @media (max-width: 1024px) {
+    min-width: unset;
+    left: 1rem;
+    right: 1rem;
+  }
+
+  span {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+
+    &.active {
+      backdrop-filter: blur(25vw) contrast(.75);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none !important;
+    }
+
+    .searchHistory__item__content {
+      padding: .5rem 1rem;
+      flex-basis: 100%;
+    }
+
+    .searchHistory__item__delete {
+      padding: .5rem 1rem;
+
+      &:not(:hover) {
+        opacity: .5;
+      }
+    }
+  }
+
+  p {
+    font-size: .8rem;
+    margin: .5rem 1rem;
+    opacity: .75;
+  }
+}

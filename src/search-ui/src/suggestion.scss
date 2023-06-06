@@ -1,8 +1,7 @@
 .suggestion {
   align-items: flex-start;
-  border-radius: var(--radius);
-  border: 1px solid var(--border-active);
   background: var(--background-active);
+  border-radius: var(--radius);
   display: flex;
   flex-direction: column;
   margin: 1rem 1.5rem;
@@ -13,7 +12,7 @@
   }
 
   .suggestion__sub {
-    color: var(--color-muted);
     font-size: .8rem;
+    opacity: .75;
   }
 }

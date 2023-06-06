@@ -1,5 +1,5 @@
 import "./app.scss";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import Error from "./Error";
 import FingerprintJS from "@fingerprintjs/fingerprintjs";
@@ -12,7 +12,7 @@ import useLocalStorageState from 'use-local-storage-state';
 const API_BASE_URL = "http://127.0.0.1:8081";
 
 function App() {
-  const [answers, setAnswers] = useState([]);
+  const [answers, setAnswers] = useState(null);
   const [answersLoading, setAnswersLoading] = useState(false);
   const [error, setError] = useState(null);
   const [F, setF] = useLocalStorageState("F", { defaultValue: null });
@@ -21,11 +21,11 @@ function App() {
   const [suggestionLoading, setSuggestionLoading] = useState(null);
   const [suggestionToken, setSuggestionToken] = useState(null);
 
-  useEffect(() => {
+  useMemo(() => {
     FingerprintJS.load()
       .then((fp) => fp.get())
       .then((res) => setF(res.visitorId));
-  });
+  }, []);
 
   useEffect(() => {
     if (!suggestionToken) return;
@@ -36,7 +36,7 @@ function App() {
     setSuggestion(null);
 
     // Close previous connection
-    suggestionLoading && suggestionLoading.close();
+    if (suggestionLoading) suggestionLoading.close();
 
     const fetch = async () => {
       // Open new connection
@@ -82,7 +82,7 @@ function App() {
           // Hardcoded error message ; functionally, this is due to a moderated query
           setError({ code: res.status, message: "No results" });
           // Reset UI
-          setAnswers([]);
+          setAnswers(null);
           setStats(null);
           setSuggestion(null);
         }
@@ -90,7 +90,7 @@ function App() {
       .catch((error) => {
         setError({ code: error.code, message: error.message });
         // Reset UI
-        setAnswers([]);
+        setAnswers(null);
         setStats(null);
         setSuggestion(null);
       })
@@ -100,13 +100,13 @@ function App() {
   return (
     <>
       <SearchBar fetchAnswers={fetchAnswers} loading={answersLoading} />
-      <div className={`results ${answersLoading && "results--answersLoading"}`}>
+      <div className={`results ${answersLoading ? "results--answersLoading" : undefined}`}>
         {error && <Error code={error.code} message={error.message} />}
         {stats && <Stats total={stats.total} time={stats.time} />}
         {(suggestion || suggestionLoading) && (
-          <Suggestion message={suggestion} loading={suggestionLoading} />
+          <Suggestion message={suggestion} loading={suggestionLoading != null} />
         )}
-        {answers.map((answer) => (
+        {answers && answers.map((answer) => (
           <Result
             key={answer.id}
             metadata={answer.metadata}

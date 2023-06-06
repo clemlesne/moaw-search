@@ -1,12 +1,9 @@
 :root {
-  --background-muted: #2e2e2e;
   --background-active: #3b2e58;
   --background: #000000;
-  --border: #474747;
   --border-active: #3b2e58;
-  --color-visited: #efd9fd;
   --color-active: #75b6e7;
-  --color-muted: #cacaca;
+  --color-visited: #efd9fd;
   --color: #e6e6e6;
   --radius: .25rem;
 
@@ -27,6 +24,10 @@
     color: var(--color-active);
     text-decoration: none;
 
+    &:not(:disabled) {
+      cursor: pointer;
+    }
+
     &:hover {
       text-decoration: underline;
     }
@@ -44,6 +45,11 @@
   ul {
     list-style-position: inside;
     list-style-type: disc;
+  }
+
+  button,
+  input {
+    border: none;
   }
 }
 

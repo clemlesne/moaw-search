@@ -1,6 +1,6 @@
 .error {
+  backdrop-filter: contrast(.75);
   border-radius: var(--radius);
-  border: 1px solid var(--border);
   margin: 1rem 1.5rem;
   padding: 1rem;
 }
