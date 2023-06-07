@@ -18,7 +18,7 @@ function SearchBar({ fetchAnswers, loading }) {
   const [lastValue, setLastValue] = useState("");
   // Persistance
   const [historyPersistance, setHistoryPersistance] = useLocalStorageState("historyPersistance", { defaultValue: null });
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(null);
   // Params
   let [searchParams, setSearchParams] = useSearchParams();
 
@@ -184,7 +184,7 @@ function SearchBar({ fetchAnswers, loading }) {
           placeholder="Search accross workshops..."
           size="1"
           type="search"
-          value={value}
+          value={value ? value : ""}
         />
         {(historyEnabled && historyLoaded && historyLoaded.length > 0) && <SearchHistory historyLoaded={historyLoaded} historySelected={historySelected} setHistorySelected={setHistorySelected} fetch={fetch} deleteFromHistory={deleteFromHistory} />}
       </span>
