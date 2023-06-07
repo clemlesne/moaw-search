@@ -173,7 +173,7 @@ function SearchBar({ fetchAnswers, loading }) {
           type="search"
           value={value}
         />
-        {(historyEnabled && historyLoaded) && <SearchHistory historyLoaded={historyLoaded} historySelected={historySelected} setHistorySelected={setHistorySelected} fetch={fetch} deleteFromHistory={deleteFromHistory} />}
+        {(historyEnabled && historyLoaded && historyLoaded.length > 0) && <SearchHistory historyLoaded={historyLoaded} historySelected={historySelected} setHistorySelected={setHistorySelected} fetch={fetch} deleteFromHistory={deleteFromHistory} />}
       </span>
       <Button
         disabled={value.length == 0}
