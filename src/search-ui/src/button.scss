@@ -19,6 +19,10 @@ button {
   &:not(:disabled) {
     cursor: pointer;
 
+    &:hover {
+      outline: 1px solid var(--border);
+    }
+
     &:active,
     &:focus {
       outline: 3px solid var(--border-active);
