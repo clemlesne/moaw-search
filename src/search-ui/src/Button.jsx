@@ -5,7 +5,8 @@ import PropTypes from "prop-types"
 function Button({ disabled, onClick, text, loading, emoji }) {
   return (
     <button disabled={disabled} onClick={onClick}>
-      <span>{text}</span> {(loading && <Loader />) || <span>{emoji}</span>}
+      {(loading && <Loader />) || <span>{emoji}</span>}
+      <span>{text}</span>
     </button>
   );
 }

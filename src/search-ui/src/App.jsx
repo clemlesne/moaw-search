@@ -1,4 +1,6 @@
 import "./app.scss";
+import { Helmet } from 'react-helmet-async';
+import { helmetJsonLdProp } from "react-schemaorg";
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import Error from "./Error";
@@ -12,21 +14,25 @@ import useLocalStorageState from 'use-local-storage-state';
 const API_BASE_URL = "http://127.0.0.1:8081";
 
 function App() {
+  // State
   const [answers, setAnswers] = useState(null);
   const [answersLoading, setAnswersLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [F, setF] = useLocalStorageState("F", { defaultValue: null });
   const [stats, setStats] = useState(null);
   const [suggestion, setSuggestion] = useState(null);
   const [suggestionLoading, setSuggestionLoading] = useState(null);
   const [suggestionToken, setSuggestionToken] = useState(null);
+  // Persistance
+  const [F, setF] = useLocalStorageState("F", { defaultValue: null });
 
+  // Init the FingerPrintJS from the browser
   useMemo(() => {
     FingerprintJS.load()
       .then((fp) => fp.get())
       .then((res) => setF(res.visitorId));
   }, []);
 
+  // Fetch the suggestion
   useEffect(() => {
     if (!suggestionToken) return;
     if (!F) return;
@@ -99,6 +105,43 @@ function App() {
 
   return (
     <>
+      <Helmet script={[
+        helmetJsonLdProp({
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          alternateName: "MOAW AI",
+          applicationCategory: "SearchApplication",
+          applicationSubCategory: "SearchEngine",
+          browserRequirements: "Requires JavaScript, HTML5, CSS3.",
+          countryOfOrigin: "France",
+          description: "A search engine for the MOAW dataset",
+          image: "/assets/fluentui-emoji-cat.svg",
+          inLanguage: "en-US",
+          license: "https://github.com/clemlesne/moaw-search/blob/main/LICENCE",
+          name: "MOAW Search",
+          url: "https://moaw-search.clemlesne.fr",
+          version: import.meta.env.VITE_VERSION,
+          sourceOrganization: {
+            "@type": "Organization",
+            name: "Microsoft",
+            url: "https://microsoft.com",
+          },
+          potentialAction: {
+            "@type": "SearchAction",
+            target: "/?q={search_term_string}",
+          },
+          maintainer: {
+            "@type": "Person",
+            email: "clemence@lesne.pro",
+            name: "Clémence Lesne",
+          },
+          isPartOf: {
+            "@type": "WebSite",
+            name: "MOAW",
+            url: "https://microsoft.github.io/moaw",
+          },
+        }),
+      ]} />
       <SearchBar fetchAnswers={fetchAnswers} loading={answersLoading} />
       <div className={`results ${answersLoading ? "results--answersLoading" : undefined}`}>
         {error && <Error code={error.code} message={error.message} />}

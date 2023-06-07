@@ -6,7 +6,10 @@ function SearchHistory({ historyLoaded, fetch, historySelected, setHistorySelect
     <div className="searchHistory">
       {historyLoaded.map((item, i) => (
         <span key={item.id} onMouseEnter={() => setHistorySelected(i)} className={historySelected == i ? "active" : undefined}>
-          <a className="searchHistory__item__content" onMouseDown={() => fetch(item.document.search)}>{item.document.search}</a>
+          <a className="searchHistory__item__content" onMouseDown={() => fetch(item.document.search)}>
+            <span>🔍</span>
+            <span>{item.document.search}</span>
+          </a>
           <a className="searchHistory__item__delete" onMouseDown={(e) => deleteFromHistory(i) && e.preventDefault()}>🗑️</a>
         </span>
       ))}
