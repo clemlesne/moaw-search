@@ -180,7 +180,7 @@ function SearchBar({ fetchAnswers, loading }) {
         onClick={() => fetch(value)}
         text="Search"
         loading={loading}
-        emoji="🔎"
+        emoji="🧠"
       />
     </div>
   );

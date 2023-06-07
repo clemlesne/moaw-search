@@ -30,8 +30,15 @@
     }
 
     .searchHistory__item__content {
-      padding: .5rem 1rem;
+      align-items: center;
+      display: flex;
       flex-basis: 100%;
+      flex-direction: row;
+      padding: .5rem 1rem;
+
+      > :first-child {
+        margin-right: 1rem;
+      }
     }
 
     .searchHistory__item__delete {
