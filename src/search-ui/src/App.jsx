@@ -1,5 +1,5 @@
 import "./app.scss";
-import { Helmet } from 'react-helmet-async';
+import { Helmet } from "react-helmet-async";
 import { helmetJsonLdProp } from "react-schemaorg";
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
@@ -9,11 +9,11 @@ import Result from "./Result";
 import SearchBar from "./SearchBar";
 import Stats from "./Stats";
 import Suggestion from "./Suggestion";
-import useLocalStorageState from 'use-local-storage-state';
-
-const API_BASE_URL = "http://127.0.0.1:8081";
+import useLocalStorageState from "use-local-storage-state";
 
 function App() {
+  // Constants
+  const API_BASE_URL = "http://127.0.0.1:8081";
   // State
   const [answers, setAnswers] = useState(null);
   const [answersLoading, setAnswersLoading] = useState(false);

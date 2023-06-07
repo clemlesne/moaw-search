@@ -1,6 +1,6 @@
 import "./searchBar.scss";
 import { create, insert, search, save, load, remove } from "@orama/orama";
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from "react-router-dom";
 import { useState, useMemo } from "react";
 import Button from "./Button";
 import PropTypes from "prop-types"
@@ -148,7 +148,7 @@ function SearchBar({ fetchAnswers, loading }) {
         },
         // Stemming is a technique that reduces words to their root form
         // See: https://docs.oramasearch.com/text-analysis/stemming
-        language: 'english',
+        language: "english",
         components: {
           // Save the database after each insert
           afterInsert: async (db) => {
@@ -190,10 +190,10 @@ function SearchBar({ fetchAnswers, loading }) {
       </span>
       <Button
         disabled={!(value && value.length > 0)}
+        emoji="🧠"
+        loading={loading}
         onClick={() => fetch(value)}
         text="Search"
-        loading={loading}
-        emoji="🧠"
       />
     </div>
   );
