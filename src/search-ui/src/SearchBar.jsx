@@ -170,7 +170,7 @@ function SearchBar({ fetchAnswers, loading }) {
 
   return (
     <div className="searchBar">
-      <h1><img src="/assets/fluentui-emoji-cat.svg" /><span>MOAW Search</span></h1>
+      <h1><span>🐱</span> <span>MOAW Search</span></h1>
       <span>
         <input
           autoComplete="off"
