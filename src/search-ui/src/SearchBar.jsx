@@ -1,21 +1,31 @@
 import "./searchBar.scss";
 import { create, insert, search, save, load, remove } from "@orama/orama";
+import { useSearchParams } from 'react-router-dom';
 import { useState, useMemo } from "react";
 import Button from "./Button";
 import PropTypes from "prop-types"
-import useLocalStorageState from "use-local-storage-state";
 import SearchHistory from "./SearchHistory";
+import useLocalStorageState from "use-local-storage-state";
 
 function SearchBar({ fetchAnswers, loading }) {
+  // Constants
   const SEARCH_LIMIT = 5;
-
+  // State
   const [historyDb, setHistoryDb] = useState(null);
   const [historyEnabled, setHistoryEnabled] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(null);
-  const [historyPersistance, setHistoryPersistance] = useLocalStorageState("historyPersistance", { defaultValue: null });
   const [historySelected, setHistorySelected] = useState(null);
   const [lastValue, setLastValue] = useState("");
-  const [value, setValue] = useLocalStorageState("value", { defaultValue: "" });
+  // Persistance
+  const [historyPersistance, setHistoryPersistance] = useLocalStorageState("historyPersistance", { defaultValue: null });
+  const [value, setValue] = useState("");
+  // Params
+  let [searchParams, setSearchParams] = useSearchParams();
+
+  // Init the value from the URL
+  useMemo(() => {
+    setValue(searchParams.get("q"));
+  }, []);
 
   const executeSearch = async (value) => {
     // First, persit the value
@@ -52,6 +62,9 @@ function SearchBar({ fetchAnswers, loading }) {
     // Disable the history ; do it first to have a better UX
     setHistoryEnabled(false);
     setHistorySelected(null);
+
+    // Update the URL
+    setSearchParams({ q: value });
 
     // First, persit the value
     setValue(value);
@@ -176,7 +189,7 @@ function SearchBar({ fetchAnswers, loading }) {
         {(historyEnabled && historyLoaded && historyLoaded.length > 0) && <SearchHistory historyLoaded={historyLoaded} historySelected={historySelected} setHistorySelected={setHistorySelected} fetch={fetch} deleteFromHistory={deleteFromHistory} />}
       </span>
       <Button
-        disabled={value.length == 0}
+        disabled={!(value && value.length > 0)}
         onClick={() => fetch(value)}
         text="Search"
         loading={loading}
