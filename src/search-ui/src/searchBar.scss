@@ -21,10 +21,18 @@
   }
 
   h1 {
+    align-items: baseline;
+    display: flex;
+    flex-direction: row;
     flex-shrink: 0;
-    font-weight: 600;
     font-size: 1.3rem;
+    font-weight: 600;
     margin-right: 1rem;
+
+    > img {
+      height: 1.3rem;
+      margin-right: .25rem;
+    }
   }
 
   > span {
