@@ -1,5 +1,5 @@
 import "./app.scss";
-import { Helmet } from 'react-helmet-async';
+import { Helmet } from "react-helmet-async";
 import { helmetJsonLdProp } from "react-schemaorg";
 import { useState, useEffect, useMemo } from "react";
 import axios from "axios";
@@ -9,11 +9,11 @@ import Result from "./Result";
 import SearchBar from "./SearchBar";
 import Stats from "./Stats";
 import Suggestion from "./Suggestion";
-import useLocalStorageState from 'use-local-storage-state';
-
-const API_BASE_URL = "http://127.0.0.1:8081";
+import useLocalStorageState from "use-local-storage-state";
 
 function App() {
+  // Constants
+  const API_BASE_URL = "http://127.0.0.1:8081";
   // State
   const [answers, setAnswers] = useState(null);
   const [answersLoading, setAnswersLoading] = useState(false);
@@ -117,9 +117,13 @@ function App() {
           description: "A search engine for the MOAW dataset",
           image: "/assets/fluentui-emoji-cat.svg",
           inLanguage: "en-US",
+          isAccessibleForFree: true,
+          learningResourceType: "workshop",
           license: "https://github.com/clemlesne/moaw-search/blob/main/LICENCE",
           name: "MOAW Search",
-          url: "https://moaw-search.clemlesne.fr",
+          releaseNotes: "https://github.com/clemlesne/moaw-search/releases",
+          teaches: "Usage of Microsoft Azure, technology, artificial intelligence, network, cloud native skills.",
+          typicalAgeRange: "16-",
           version: import.meta.env.VITE_VERSION,
           sourceOrganization: {
             "@type": "Organization",

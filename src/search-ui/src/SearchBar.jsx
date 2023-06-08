@@ -1,6 +1,6 @@
 import "./searchBar.scss";
 import { create, insert, search, save, load, remove } from "@orama/orama";
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from "react-router-dom";
 import { useState, useMemo } from "react";
 import Button from "./Button";
 import PropTypes from "prop-types"
@@ -18,7 +18,7 @@ function SearchBar({ fetchAnswers, loading }) {
   const [lastValue, setLastValue] = useState("");
   // Persistance
   const [historyPersistance, setHistoryPersistance] = useLocalStorageState("historyPersistance", { defaultValue: null });
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(null);
   // Params
   let [searchParams, setSearchParams] = useSearchParams();
 
@@ -148,7 +148,7 @@ function SearchBar({ fetchAnswers, loading }) {
         },
         // Stemming is a technique that reduces words to their root form
         // See: https://docs.oramasearch.com/text-analysis/stemming
-        language: 'english',
+        language: "english",
         components: {
           // Save the database after each insert
           afterInsert: async (db) => {
@@ -170,7 +170,7 @@ function SearchBar({ fetchAnswers, loading }) {
 
   return (
     <div className="searchBar">
-      <h1><img src="/assets/fluentui-emoji-cat.svg" /><span>MOAW Search</span></h1>
+      <h1><span>🐱</span> <span>MOAW Search</span></h1>
       <span>
         <input
           autoComplete="off"
@@ -184,16 +184,16 @@ function SearchBar({ fetchAnswers, loading }) {
           placeholder="Search accross workshops..."
           size="1"
           type="search"
-          value={value}
+          value={value ? value : ""}
         />
         {(historyEnabled && historyLoaded && historyLoaded.length > 0) && <SearchHistory historyLoaded={historyLoaded} historySelected={historySelected} setHistorySelected={setHistorySelected} fetch={fetch} deleteFromHistory={deleteFromHistory} />}
       </span>
       <Button
         disabled={!(value && value.length > 0)}
+        emoji="🧠"
+        loading={loading}
         onClick={() => fetch(value)}
         text="Search"
-        loading={loading}
-        emoji="🧠"
       />
     </div>
   );
