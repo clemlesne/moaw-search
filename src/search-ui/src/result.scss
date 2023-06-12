@@ -9,7 +9,7 @@
 
   &:hover {
     text-decoration: none !important;
-    backdrop-filter: contrast(.75);
+    background: var(--background-muted);
   }
 
   > *:not(:last-child) {
