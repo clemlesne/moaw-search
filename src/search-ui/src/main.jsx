@@ -1,5 +1,5 @@
+import "normalize.css/normalize.css";
 import "./main.scss";
-import "./reset.css";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { HelmetProvider } from 'react-helmet-async';
 import App from "./App";
