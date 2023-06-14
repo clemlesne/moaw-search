@@ -79,14 +79,14 @@ jobs:
 
       - name: Package Helm chart
         run: |
-          cp README.md cicd/helm/
+          cp README.md cicd/helm/moaw-search
 
           helm package \
             --app-version ${{ steps.version.outputs.version }} \
             --dependency-update \
             --destination .cr-release-packages \
             --version ${{ steps.version.outputs.version }} \
-            cicd/helm
+            cicd/helm/moaw-search
 
       - name: Cache Helm chart
         uses: actions/upload-artifact@v3.1.2
