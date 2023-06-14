@@ -1,6 +1,6 @@
 # MOAW Search
 
-**Demo available at [moaw-search.shopping-cart-devops-demo.lesne.pro](https://moaw-search.shopping-cart-devops-demo.lesne.pro/).**
+> 👋🏻 Demo available at [ms-clesne-2-26w0ryrv46wo.westeurope.cloudapp.azure.com](https://ms-clesne-2-26w0ryrv46wo.westeurope.cloudapp.azure.com).
 
 MOAW Search is a search engine for the [MOAW](https://microsoft.github.io/moaw/) workshops. It use [Embeddings](https://platform.openai.com/docs/guides/embeddings) to find the most similar sentences to the query. Either hosted on [Azure Cognitive Services](https://learn.microsoft.com/en-us/azure/cognitive-services/what-are-cognitive-services) or [Azure Kubernetes Services (AKS)](https://learn.microsoft.com/en-us/azure/aks/intro-kubernetes). Search queries can be asked in natural language. It uses [Qdrant to index the data](https://github.com/qdrant/qdrant) and [Redis to cache the results](https://github.com/redis/redis). Suggestions are streamed from remote to the client in real time [using server-sent events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events).
 
