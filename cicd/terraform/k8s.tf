@@ -20,6 +20,7 @@ resource "azurerm_kubernetes_cluster" "this" {
   oidc_issuer_enabled       = true
   resource_group_name       = azurerm_resource_group.this.name
   workload_identity_enabled = true
+  automatic_channel_upgrade = "patch"
 
   identity {
     type = "SystemAssigned"
