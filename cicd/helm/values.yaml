@@ -24,13 +24,13 @@ resources:
 
 api:
   acs:
-    base: moaw-search-modr.cognitiveservices.azure.com
+    base: https://moaw-search-modr.cognitiveservices.azure.com
     token: 9abbbdb07fb4448cb059e00be1d5d0e6
   logging:
     app: DEBUG
     sys: WARN
   oai:
-    base: moaw-search.openai.azure.com
+    base: https://moaw-search.openai.azure.com
     ada_deploy_id: text-embedding-ada-002
     gpt_deploy_id: gpt-35-turbo
 

@@ -55,7 +55,7 @@ spec:
                   name: {{ include "moaw-search.fullname" . }}-search-api
                   key: MS_ACS_API_TOKEN
             - name: MS_ACS_API_BASE
-              value: "https://{{ .Values.api.acs.base | required "A value for .Values.api.acs.base is required" }}"
+              value: "{{ .Values.api.acs.base | required "A value for .Values.api.acs.base is required" }}"
             - name: MS_LOGGING_APP_LEVEL
               value: {{ .Values.api.logging.app | required "A value for .Values.api.logging.app is required" }}
             - name: MS_LOGGING_SYS_LEVEL
@@ -65,7 +65,7 @@ spec:
             - name: MS_OAI_GPT_DEPLOY_ID
               value: {{ .Values.api.oai.gpt_deploy_id | required "A value for .Values.api.oai.gpt_deploy_id is required" }}
             - name: OPENAI_API_BASE
-              value: "https://{{ .Values.api.oai.base | required "A value for .Values.api.oai.base is required" }}"
+              value: "{{ .Values.api.oai.base | required "A value for .Values.api.oai.base is required" }}"
             - name: MS_REDIS_HOST
               value: {{ include "common.names.fullname" .Subcharts.redis }}-master
             - name: MS_QD_HOST
