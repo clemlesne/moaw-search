@@ -45,9 +45,6 @@ spec:
   headers:
     browserXssFilter: true
     frameDeny: true
-    stsIncludeSubdomains: true
-    stsPreload: true
-    stsSeconds: 31536000
 ---
 apiVersion: traefik.containo.us/v1alpha1
 kind: Middleware

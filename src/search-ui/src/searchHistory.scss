@@ -1,11 +1,12 @@
 .searchHistory {
-  backdrop-filter: blur(25vw) contrast(.75);
+  background: var(--background);
   border-radius: var(--radius);
   display: flex;
   flex-direction: column;
   margin-top: .5rem;
   max-height: 50vh;
   min-width: 40rem;
+  outline: 1px solid var(--border);
   overflow: auto;
   position: fixed;
 
@@ -21,7 +22,7 @@
     flex-wrap: nowrap;
 
     &.active {
-      backdrop-filter: blur(25vw) contrast(.75);
+      background: var(--background-muted);
     }
 
     a {
@@ -34,7 +35,7 @@
       display: flex;
       flex-basis: 100%;
       flex-direction: row;
-      padding: .5rem 1rem;
+      padding: .75rem 1rem;
 
       > :first-child {
         margin-right: 1rem;
@@ -42,7 +43,7 @@
     }
 
     .searchHistory__item__delete {
-      padding: .5rem 1rem;
+      padding: .75rem 1rem;
 
       &:not(:hover) {
         opacity: .5;
@@ -52,7 +53,7 @@
 
   p {
     font-size: .8rem;
-    margin: .5rem 1rem;
+    margin: .75rem 1rem;
     opacity: .75;
   }
 }

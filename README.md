@@ -16,20 +16,32 @@ OpenAI models used are:
 
 ### Run locally
 
-Create a local configuration file:
+Create a local configuration file, a file named `.env` at the root of the project:
 
 ```bash
-# .env
+# Misc
+MS_LOGGING_APP_LEVEL=DEBUG
+
+# Redis
+MS_REDIS_DB=0
+
+# Azure Cognitive Services
 MS_ACS_API_BASE=https://[resource_name].cognitiveservices.azure.com
 MS_ACS_API_TOKEN=[service_token]
-MS_LOGGING_APP_LEVEL=DEBUG
 MS_OAI_ADA_DEPLOY_ID=[deployment_name]
 MS_OAI_GPT_DEPLOY_ID=[deployment_name]
-MS_REDIS_DB=0
 OPENAI_API_BASE=https://[resource_name].openai.azure.com
+
+# Azure SDK
+# Here, example with a a service principal with a client secret
+# See: https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.environmentcredential?view=azure-python
+AZURE_AUTHORITY_HOST=https://login.microsoftonline.com
+AZURE_CLIENT_ID=[client_id]
+AZURE_CLIENT_SECRET=[client_secret]
+AZURE_TENANT_ID=[tenant_id]
 ```
 
-This will build locally the container, start them, and display the logs:
+This will build locally the containers, start them, and display the logs:
 
 ```bash
 make build start logs

@@ -82,7 +82,7 @@ jobs:
           cp README.md cicd/helm/
 
           helm package \
-            --app-version ${{ steps.version.outputs.version_full }} \
+            --app-version ${{ steps.version.outputs.version }} \
             --dependency-update \
             --destination .cr-release-packages \
             --version ${{ steps.version.outputs.version }} \

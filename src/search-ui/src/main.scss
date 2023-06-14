@@ -1,24 +1,36 @@
 :root {
-  --background-active: #3b2e58;
+  --background-active: #003054;
+  --background-muted: #323232;
   --background: #000000;
-  --border-active: #3b2e58;
+  --border-active: #003054;
   --border: #737373;
-  --color-active: #75b6e7;
-  --color-visited: #efd9fd;
-  --color: #e6e6e6;
+  --color-active: #99c9ed;  // Constrast ratio of 7.69:1 with "background-active"
+  --color-visited: #d7c3e3;  // Constrast ratio of 8.25:1 with "background-active"
+  --color: #e6e6e6;  // Constrast ratio of 10.84:1 with "background-active"
   --radius: .25rem;
+}
 
+html,
+body {
   background-color: var(--background);
   color-scheme: dark;
   color: var(--color);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", Helvetica, Arial, sans-serif;
   font-synthesis: none;
+  font-weight: 400;
   hyphens: manual;
+  line-height: 1.7rem;
   text-rendering: optimizeLegibility;
   word-break: break-word;
 
-  * {
-    line-height: 160%;
+  p, h1, h2, h3, h4, h5, h6 {
+    font: inherit;
+    margin: 0;
+  }
+
+  button,
+  input {
+    border: none;
   }
 
   a {
@@ -46,11 +58,6 @@
   ul {
     list-style-position: inside;
     list-style-type: disc;
-  }
-
-  button,
-  input {
-    border: none;
   }
 }
 
