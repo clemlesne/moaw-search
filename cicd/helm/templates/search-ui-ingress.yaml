@@ -9,7 +9,7 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`{{ .Values.ingress.host }}`)
+    - match: Host(`{{ .Values.ingress.host | required "A value for .Values.ingress.host is required" }}`)
       kind: Rule
       services:
         - name: {{ include "moaw-search.fullname" . }}-search-ui

@@ -53,6 +53,21 @@ Then, go to [http://127.0.0.1:8081](http://127.0.0.1:8081).
 
 All deployments are container based. You can deploy locally with Docker Compose or in Kubernetes with Helm.
 
+```yaml
+# values.yaml
+serviceAccountName: moaw-search-sa
+ingress:
+  host: app.contoso.com
+api:
+  acs:
+    base: https://[deployment].cognitiveservices.azure.com
+    token: xxx-xxx-xxx
+  oai:
+    ada_deploy_id: text-embedding-ada-002
+    base: https://[deployment].openai.azure.com
+    gpt_deploy_id: gpt-35-turbo
+```
+
 ```bash
 # In Kubernetes, with Helm
 NAMESPACE=moaw-search make deploy
