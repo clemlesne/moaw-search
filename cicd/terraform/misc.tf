@@ -21,11 +21,3 @@ resource "azurerm_resource_group" "this" {
     managed-by  = "terraform"
   }
 }
-
-resource "azurerm_log_analytics_workspace" "this" {
-  location            = var.location
-  name                = var.prefix
-  resource_group_name = azurerm_resource_group.this.name
-  retention_in_days   = 30
-  sku                 = "PerGB2018"
-}
