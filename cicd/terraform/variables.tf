@@ -1,6 +1,11 @@
 variable "location" {
   type        = string
-  description = "Azure region"
+  description = "Azure region for compute and storage"
+}
+
+variable "location_monitoring" {
+  type        = string
+  description = "Azure region for monitoring ; should be different from 'location' variable"
 }
 
 variable "prefix" {

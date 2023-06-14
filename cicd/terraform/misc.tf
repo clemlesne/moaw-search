@@ -21,3 +21,13 @@ resource "azurerm_resource_group" "this" {
     managed-by  = "terraform"
   }
 }
+
+resource "azurerm_resource_group" "monitoring" {
+  location = var.location_monitoring
+  name     = "${var.prefix}-monitoring"
+
+  tags = {
+    deployed-at = timestamp()
+    managed-by  = "terraform"
+  }
+}
