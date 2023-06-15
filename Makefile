@@ -30,8 +30,5 @@ stop:
 logs:
 	docker-compose logs --follow
 
-deploy-terraform:
-	@make -C cicd/terraform init plan apply
-
-deploy-helm:
+deploy:
 	@make -C cicd/helm deploy
