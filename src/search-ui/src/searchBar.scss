@@ -31,23 +31,7 @@
     flex-basis: 40rem;
 
     input {
-      background: var(--background);
-      border-radius: var(--radius);
-      padding: .75rem 1rem;
       width: 100%;
-
-      &,
-      &::placeholder {
-        color: var(--color);
-      }
-
-      &::placeholder {
-        opacity: .75;
-      }
-
-      &:focus {
-        outline: 1px solid var(--border);
-      }
     }
   }
 
