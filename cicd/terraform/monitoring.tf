@@ -1,14 +1,18 @@
 resource "azurerm_log_analytics_workspace" "this" {
-  location            = var.location_monitoring
-  name                = var.prefix
-  resource_group_name = azurerm_resource_group.monitoring.name
+  location            = module.rg_monitoring.location
+  name                = module.rg_monitoring.name
+  resource_group_name = module.rg_monitoring.name
   retention_in_days   = 30
   sku                 = "PerGB2018"
+
+  lifecycle {
+    ignore_changes = [tags]
+  }
 }
 
 resource "azurerm_log_analytics_solution" "container_insights" {
-  location              = var.location_monitoring
-  resource_group_name   = azurerm_resource_group.monitoring.name
+  location              = module.rg_monitoring.location
+  resource_group_name   = module.rg_monitoring.name
   solution_name         = "ContainerInsights"
   workspace_name        = azurerm_log_analytics_workspace.this.name
   workspace_resource_id = azurerm_log_analytics_workspace.this.id
@@ -16,5 +20,9 @@ resource "azurerm_log_analytics_solution" "container_insights" {
   plan {
     product   = "OMSGallery/ContainerInsights"
     publisher = "Microsoft"
+  }
+
+  lifecycle {
+    ignore_changes = [tags]
   }
 }

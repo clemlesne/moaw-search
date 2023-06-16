@@ -1,5 +1,9 @@
+data "azuread_service_principal" "aks" {
+  display_name = "Azure Kubernetes Service AAD Server"
+}
+
 data "azurerm_kubernetes_service_versions" "this" {
-  location = var.location
+  location = module.rg_default.location
 }
 
 resource "random_string" "temporary_name_for_rotation" {
@@ -11,14 +15,14 @@ resource "random_string" "temporary_name_for_rotation" {
 
 resource "azurerm_kubernetes_cluster" "this" {
   azure_policy_enabled      = true
-  dns_prefix                = replace(lower(var.prefix), "/[^a-zA-Z0-9]/", "")
+  dns_prefix                = replace(lower(module.rg_default.name), "/[^a-zA-Z0-9]/", "")
   image_cleaner_enabled     = true
   kubernetes_version        = data.azurerm_kubernetes_service_versions.this.latest_version
   local_account_disabled    = true
-  location                  = var.location
-  name                      = var.prefix
+  location                  = module.rg_default.location
+  name                      = module.rg_default.name
   oidc_issuer_enabled       = true
-  resource_group_name       = azurerm_resource_group.this.name
+  resource_group_name       = module.rg_default.name
   workload_identity_enabled = true
   automatic_channel_upgrade = "patch"
 
@@ -61,6 +65,10 @@ resource "azurerm_kubernetes_cluster" "this" {
     network_plugin = "azure"
     network_policy = "calico"
   }
+
+  lifecycle {
+    ignore_changes = [tags]
+  }
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "user" {
@@ -72,6 +80,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "user" {
   os_disk_type          = "Ephemeral"
   os_sku                = "CBLMariner"
   vm_size               = "Standard_D8a_v4"
+  zones                 = var.zones
 }
 
 # TODO: Find a way to activate (error: https://github.com/hashicorp/terraform-provider-kubernetes-alpha/issues/199)

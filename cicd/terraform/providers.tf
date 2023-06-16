@@ -21,6 +21,9 @@ terraform {
     time = {
       source  = "hashicorp/time"
     }
+    external = {
+      source  = "hashicorp/external"
+    }
   }
 }
 
@@ -52,7 +55,7 @@ provider "kubernetes" {
       "--client-id", azuread_service_principal.sys_spn.application_id,
       "--client-secret", azuread_application_password.sys_password.value,
       "--environment", "AzurePublicCloud",
-      "--server-id", data.azuread_service_principal.this.application_id,
+      "--server-id", data.azuread_service_principal.aks.application_id,
       "--tenant-id", data.azurerm_subscription.this.tenant_id,
       "--login", "spn"
     ]
@@ -75,7 +78,7 @@ provider "helm" {
         "--client-id", azuread_service_principal.sys_spn.application_id,
         "--client-secret", azuread_application_password.sys_password.value,
         "--environment", "AzurePublicCloud",
-        "--server-id", data.azuread_service_principal.this.application_id,
+        "--server-id", data.azuread_service_principal.aks.application_id,
         "--tenant-id", data.azurerm_subscription.this.tenant_id,
         "--login", "spn"
       ]

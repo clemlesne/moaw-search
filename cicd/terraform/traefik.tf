@@ -3,10 +3,11 @@ locals {
 }
 
 resource "kubernetes_namespace" "traefik" {
+  depends_on = [time_sleep.wait_for_ad]
+
   metadata {
     name = local.traefik_name
   }
-  depends_on = [time_sleep.wait_for_ad]
 }
 
 resource "helm_release" "traefik" {
@@ -25,7 +26,7 @@ resource "helm_release" "traefik" {
       spec:
         loadBalancerIP: ${azurerm_public_ip.traefik.ip_address}
         annotations:
-          service.beta.kubernetes.io/azure-load-balancer-resource-group: ${azurerm_resource_group.this.name}
+          service.beta.kubernetes.io/azure-load-balancer-resource-group: ${module.rg_default.name}
     ports:
       web:
         redirectTo: websecure
@@ -59,19 +60,23 @@ resource "random_string" "dns_suffix" {
 
 resource "azurerm_public_ip" "traefik" {
   allocation_method   = "Static"
-  domain_name_label   = "${var.prefix}-${random_string.dns_suffix.result}"
-  location            = var.location
-  name                = "${var.prefix}-${local.traefik_name}"
-  resource_group_name = azurerm_resource_group.this.name
+  domain_name_label   = "${module.rg_default.name}-${random_string.dns_suffix.result}"
+  location            = module.rg_default.location
+  name                = "${module.rg_default.name}-${local.traefik_name}"
+  resource_group_name = module.rg_default.name
   sku                 = "Standard"
   zones               = var.zones
+
+  lifecycle {
+    ignore_changes = [tags]
+  }
 }
 
 # add to the kubernetes cluster identity the role Network Contributor on the resource group
 resource "azurerm_role_assignment" "this" {
   principal_id         = azurerm_kubernetes_cluster.this.identity.0.principal_id
   role_definition_name = "Network Contributor"
-  scope                = azurerm_resource_group.this.id
+  scope                = module.rg_default.id
 }
 
 # generate a ssl certificate for the public ip

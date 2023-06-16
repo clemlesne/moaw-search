@@ -1,5 +1,5 @@
 resource "azuread_application" "sys" {
-  display_name = var.prefix
+  display_name = module.rg_default.name
   owners       = [data.azuread_client_config.this.object_id]
 }
 

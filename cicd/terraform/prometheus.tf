@@ -3,10 +3,11 @@ locals {
 }
 
 resource "kubernetes_namespace" "prometheus" {
+  depends_on = [time_sleep.wait_for_ad]
+
   metadata {
     name = local.prometheus_name
   }
-  depends_on = [time_sleep.wait_for_ad]
 }
 
 resource "helm_release" "prometheus" {

@@ -7,27 +7,24 @@ data "azurerm_client_config" "this" {}
 # Reference to the current tenant ID
 data "azuread_client_config" "this" {}
 
-# Reference to the Azure Active Directory server
-data "azuread_service_principal" "this" {
-  display_name = "Azure Kubernetes Service AAD Server"
-}
+module "rg_default" {
+  source = "./rg"
 
-resource "azurerm_resource_group" "this" {
   location = var.location
-  name     = var.prefix
+  prefix   = var.prefix
 
   tags = {
-    deployed-at = timestamp()
-    managed-by  = "terraform"
+    usage = "default"
   }
 }
 
-resource "azurerm_resource_group" "monitoring" {
+module "rg_monitoring" {
+  source = "./rg"
+
   location = var.location_monitoring
-  name     = "${var.prefix}-monitoring"
+  prefix   = "${var.prefix}-monitoring"
 
   tags = {
-    deployed-at = timestamp()
-    managed-by  = "terraform"
+    usage = "monitoring"
   }
 }
