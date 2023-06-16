@@ -12,6 +12,7 @@
 
 html,
 body {
+  appearance: none;
   background-color: var(--background);
   color-scheme: dark;
   color: var(--color);
@@ -30,7 +31,44 @@ body {
 
   button,
   input {
-    border: none;
+    background: var(--background);
+    border-radius: var(--radius);
+    border: unset;
+    padding: .75rem 1rem;
+
+    &,
+    &::placeholder,
+    &:disabled {
+      color: var(--color);
+    }
+
+    &::placeholder,
+    &:disabled {
+      opacity: .75;
+    }
+
+    &:not(:disabled) {
+      &:hover {
+        outline: 1px solid var(--border);
+      }
+
+      &:active,
+      &:focus {
+        outline: 3px solid var(--border-active);
+      }
+    }
+  }
+
+  button {
+    &:not(:disabled) {
+      cursor: pointer;
+    }
+  }
+
+  input {
+    &:not(:disabled) {
+      cursor: text;
+    }
   }
 
   a {

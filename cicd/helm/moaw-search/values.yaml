@@ -11,7 +11,8 @@ fullnameOverride: ""
 serviceAccountName: moaw-search-sa
 
 ingress:
-  host: moaw-search.shopping-cart-devops-demo.lesne.pro
+  # app.contoso.com
+  host: null
   tls: {}
 
 resources:
@@ -24,14 +25,16 @@ resources:
 
 api:
   acs:
-    base: https://moaw-search-modr.cognitiveservices.azure.com
-    token: 9abbbdb07fb4448cb059e00be1d5d0e6
+    # https://[deployment].cognitiveservices.azure.com
+    base: null
+    token: null
   logging:
     app: DEBUG
     sys: WARN
   oai:
-    base: https://moaw-search.openai.azure.com
+    # https://[deployment].openai.azure.com
     ada_deploy_id: text-embedding-ada-002
+    base: null
     gpt_deploy_id: gpt-35-turbo
 
 redis:

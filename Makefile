@@ -31,14 +31,4 @@ logs:
 	docker-compose logs --follow
 
 deploy:
-	test -n "$(NAMESPACE)"  # $$NAMESPACE
-
-	helm upgrade \
-		--atomic \
-		--dependency-update \
-		--install \
-		--namespace $(NAMESPACE) \
-		--timeout 5m \
-		--values .values.yaml \
-		--wait \
-		default cicd/helm
+	@make -C cicd/helm deploy
