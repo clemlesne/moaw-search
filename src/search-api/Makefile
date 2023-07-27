@@ -7,6 +7,13 @@ container_name := ghcr.io/clemlesne/moaw-search/$(component_name)
 install:
 	python3 -m pip install -r requirements.txt
 
+upgrade:
+	@echo "➡️ Upgrading pip..."
+	python3 -m pip install --upgrade pip
+
+	@echo "➡️ Upgrading Python dependencies..."
+	pur -r requirements.txt
+
 test:
 	@echo "➡️ Running Black..."
 	python3 -m black --check .

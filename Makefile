@@ -21,6 +21,10 @@ lint:
 	@make -C src/search-api lint
 	@make -C src/search-ui lint
 
+upgrade:
+	@make -C src/search-api upgrade
+	@make -C src/search-ui upgrade
+
 start:
 	docker-compose up -d
 
