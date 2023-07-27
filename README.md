@@ -12,6 +12,58 @@ OpenAI models used are:
 
 ![Application screenshot](docs/main.png)
 
+## How it works
+
+### High level
+
+```mermaid
+sequenceDiagram
+    autonumber
+
+    actor User
+    participant PWA
+    participant API
+
+    User ->> PWA: Fill text
+    activate PWA
+    PWA ->> API: Get answers
+    API ->> PWA: Answer with the results
+    User ->> PWA: See results
+    deactivate PWA
+    PWA ->> API: Ask for suggestion
+    API ->> API: Takes forever
+    API ->> PWA: Answer with the suggestion
+    User ->> PWA: See suggestion
+```
+
+### Architecture
+
+```mermaid
+graph
+  user(["User"])
+
+  api["Search service\n(REST API)"]
+  moaw["MOAW\n(website)"]
+  qdrant[("Qdrant\n(disk)")]
+  redis[("Redis\n(memory)")]
+  ui["Search UI\n(PWA)"]
+
+  subgraph "Azure OpenAI services"
+    oai_ada["ADA embedding"]
+    oai_gpt["GPT completions"]
+    safety["Content Safety"]
+  end
+
+  api -- Cache entities --> redis
+  api -- Generate completions --> oai_gpt
+  api -- Test moderation --> safety
+  api -- Generate embeddings --> oai_ada
+  api -- Index data every hour --> moaw
+  api -- Search for similarities, index vectors --> qdrant
+  ui -- Use APIs --> api
+  user -- Navigate --> ui
+```
+
 ## How to use
 
 ### Run locally
@@ -91,58 +143,6 @@ helm upgrade --install default clemlesne-moaw-search/moaw-search
 Go to [http://127.0.0.1:8081/redoc](http://127.0.0.1:8081/redoc).
 
 ![Documentation endpoint](docs/doc.png)
-
-## How it works
-
-### High level
-
-```mermaid
-sequenceDiagram
-    autonumber
-
-    actor User
-    participant PWA
-    participant API
-
-    User ->> PWA: Fill text
-    activate PWA
-    PWA ->> API: Get answers
-    API ->> PWA: Answer with the results
-    User ->> PWA: See results
-    deactivate PWA
-    PWA ->> API: Ask for suggestion
-    API ->> API: Takes forever
-    API ->> PWA: Answer with the suggestion
-    User ->> PWA: See suggestion
-```
-
-### Architecture
-
-```mermaid
-graph
-  user(["User"])
-
-  api["Search service\n(REST API)"]
-  moaw["MOAW\n(website)"]
-  qdrant[("Qdrant\n(disk)")]
-  redis[("Redis\n(memory)")]
-  ui["Search UI\n(PWA)"]
-
-  subgraph "Azure OpenAI services"
-    oai_ada["ADA embedding"]
-    oai_gpt["GPT completions"]
-    safety["Content Safety"]
-  end
-
-  api -- Cache entities --> redis
-  api -- Generate completions --> oai_gpt
-  api -- Test moderation --> safety
-  api -- Generate embeddings --> oai_ada
-  api -- Index data every hour --> moaw
-  api -- Search for similarities, index vectors --> qdrant
-  ui -- Use APIs --> api
-  user -- Navigate --> ui
-```
 
 ## Advanced topics
 
