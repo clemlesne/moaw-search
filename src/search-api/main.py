@@ -75,7 +75,7 @@ async def refresh_oai_token():
     """
     Refresh OpenAI token every 25 minutes.
 
-    The OpenAI SDK does not support token refresh, so we need to do it manually. We passe manually the token to the SDK. Azure AD tokens are valid for 30 mins, but we refresh every 25 minutes to be safe.
+    The OpenAI SDK does not support token refresh, so we need to do it manually. We passe manually the token to the SDK. Azure AD tokens are valid for 30 mins, but we refresh every 15 minutes to be safe.
 
     See: https://github.com/openai/openai-python/pull/350#issuecomment-1489813285
     """
@@ -97,7 +97,7 @@ OAI_COMPLETION_ARGS = {
     "model": "gpt-3.5-turbo",
 }
 
-logger.info(f"(OpenAI) Using Aure private service ({openai.api_base})")
+logger.info(f"(OpenAI) Using Aure private service \"{openai.api_base}\"")
 openai.api_type = "azure_ad"
 openai.api_version = "2023-05-15"
 asyncio.create_task(refresh_oai_token())
@@ -111,7 +111,7 @@ asyncio.create_task(refresh_oai_token())
 ACS_SEVERITY_THRESHOLD = 2
 ACS_API_BASE = os.environ.get("MS_ACS_API_BASE")
 ACS_API_TOKEN = os.environ.get("MS_ACS_API_TOKEN")
-logger.info(f"(Azure Content Safety) Using Aure private service ({ACS_API_BASE})")
+logger.info(f"(Azure Content Safety) Using Aure private service \"{ACS_API_BASE}\"")
 acs_client = azure_cs.ContentSafetyClient(
     ACS_API_BASE, AzureKeyCredential(ACS_API_TOKEN)
 )
@@ -438,7 +438,7 @@ async def suggestion_sse_generator(req: Request, search: SearchModel, user: UUID
 )
 async def search(
     query: Annotated[str, Query(max_length=200)], user: UUID, limit: int = 10
-) -> Union[SearchModel, None]:
+) -> Optional[SearchModel]:
     start = time.monotonic()
 
     logger.info(f"Searching for text: {query}")
@@ -456,7 +456,7 @@ async def search(
         logger.debug("No cached results found")
 
         if await is_moderated(query):
-            logger.debug(f"Query is moderated: {query}")
+            logger.debug(f"Query \"{query}\" is moderated")
             return Response(status_code=status.HTTP_204_NO_CONTENT)
 
         total = qd_client.count(collection_name=QD_COLLECTION, exact=False).count
@@ -604,7 +604,7 @@ def completion_from_text(search: SearchModel, cache_key: str, user: UUID) -> Non
 
     for chunk in chunks:
         content = chunk["choices"][0].get("delta", {}).get("content")
-        if content is not None:
+        if content != None:
             logger.debug(f"Completion result: {content}")
             # add content to the redis stream cache_key
             redis_client_api.xadd(cache_key, {"message": content})

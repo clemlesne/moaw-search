@@ -50,14 +50,14 @@ function App() {
       // Store the connection to be able to close it later
       setSuggestionLoading(source);
 
-      let suggestion = "";
-      source.onmessage = (event) => {
-        suggestion += event.data;
-        setSuggestion(suggestion);
+      let data = "";
+      source.onmessage = (e) => {
+        data += e.data;
+        setSuggestion(data);
       };
 
-      source.onerror = (event) => {
-        if (event.eventPhase === EventSource.CLOSED) {
+      source.onerror = (e) => {
+        if (e.eventPhase === EventSource.CLOSED) {
           setSuggestionLoading(null);
           source.close();
         }
