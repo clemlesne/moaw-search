@@ -299,7 +299,7 @@ async def search_answer(query: str, limit: int, user: UUID) -> List[any]:
     vector = await vector_from_text(
         textwrap.dedent(
             f"""
-            Today, we are the {datetime.now()}.
+            Today, we are the {datetime.utcnow()}.
 
             QUERY START
             {query}
@@ -648,7 +648,7 @@ async def is_moderated(prompt: str) -> bool:
 def prompt_from_search(search: SearchModel) -> str:
     prompt = textwrap.dedent(
         f"""
-        You are a training consultant. You are working for Microsoft. You have 20 years' experience in the technology industry and have also worked as a life coach. Today, we are the {datetime.now()}.
+        You are a training consultant. You are working for Microsoft. You have 20 years' experience in the technology industry and have also worked as a life coach. Today, we are the {datetime.utcnow()}.
 
         You MUST:
         - Be concise and precise
