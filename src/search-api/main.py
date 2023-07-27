@@ -32,7 +32,7 @@ from models.search import SearchAnswerModel, SearchStatsModel, SearchModel
 from qdrant_client import QdrantClient
 from redis import Redis
 from sse_starlette.sse import EventSourceResponse
-from tenacity import retry, stop_after_attempt
+from tenacity import retry, stop_after_attempt, wait_random_exponential
 from typing import List, Annotated, Optional, Tuple, Union
 from uuid import uuid4, UUID
 from yarl import URL
@@ -73,7 +73,7 @@ logger.setLevel(LOGGING_APP_LEVEL)
 
 async def refresh_oai_token():
     """
-    Refresh OpenAI token every 25 minutes.
+    Refresh OpenAI token every 15 minutes.
 
     The OpenAI SDK does not support token refresh, so we need to do it manually. We passe manually the token to the SDK. Azure AD tokens are valid for 30 mins, but we refresh every 15 minutes to be safe.
 
@@ -84,8 +84,8 @@ async def refresh_oai_token():
         oai_cred = DefaultAzureCredential()
         oai_token = oai_cred.get_token("https://cognitiveservices.azure.com/.default")
         openai.api_key = oai_token.token
-        # Execute every 25 minutes
-        await asyncio.sleep(25*60)
+        # Execute every 20 minutes
+        await asyncio.sleep(15*60)
 
 
 OAI_EMBEDDING_ARGS = {
@@ -563,7 +563,7 @@ async def index_engine(user: UUID, force: bool = False) -> None:
         logger.info(f"Indexed {len(workshops)} workshops")
 
 
-@retry(stop=stop_after_attempt(3))
+@retry(stop=stop_after_attempt(3), wait=wait_random_exponential(multiplier=0.5, max=30))
 async def vector_from_text(prompt: str, user: UUID) -> List[float]:
     logger.debug(f"Getting vector for text: {prompt}")
     user_hash = str_anonymization(user.bytes)
@@ -580,7 +580,7 @@ async def vector_from_text(prompt: str, user: UUID) -> List[float]:
     return res.data[0].embedding
 
 
-@retry(stop=stop_after_attempt(3))
+@retry(stop=stop_after_attempt(3), wait=wait_random_exponential(multiplier=0.5, max=30))
 def completion_from_text(search: SearchModel, cache_key: str, user: UUID) -> None:
     logger.debug(f"Getting completion for text: {search.query}")
     training = prompt_from_search(search)
@@ -613,7 +613,7 @@ def completion_from_text(search: SearchModel, cache_key: str, user: UUID) -> Non
     redis_client_api.xadd(cache_key, {"message": REDIS_STREAM_STOPWORD})
 
 
-@retry(stop=stop_after_attempt(3))
+@retry(stop=stop_after_attempt(3), wait=wait_random_exponential(multiplier=0.5, max=30))
 async def is_moderated(prompt: str) -> bool:
     logger.debug(f"Checking moderation for text: {prompt}")
 
