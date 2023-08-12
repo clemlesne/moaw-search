@@ -248,12 +248,8 @@ jobs:
         with:
           build-args: |
             VERSION=${{ steps.version.outputs.version_full }}
-          cache-from: |
-            type=gha
-            type=registry,ref=${{ env.CONTAINER_REGISTRY }}/${{ env.CONTAINER_NAME }}/${{ matrix.src }}
-          cache-to: |
-            type=gha,mode=max
-            type=registry,ref=${{ env.CONTAINER_REGISTRY }}/${{ env.CONTAINER_NAME }}/${{ matrix.src }},mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           context: src/${{ matrix.src }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ env.CONTAINER_PLATFORMS }}
